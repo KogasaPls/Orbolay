@@ -45,6 +45,28 @@ pub struct User {
   pub camera: bool,
   pub volume: f32,
   pub speaking_epoch: u64,
+  pub lingering: bool,
+}
+
+impl User {
+  /// Returns the speaking epoch when this change ends a speaking period, so the
+  /// caller can end the linger that follows it
+  pub fn set_voice_state(&mut self, voice_state: UserVoiceState) -> Option<u64> {
+    let was_speaking = self.voice_state == UserVoiceState::Speaking;
+    let is_speaking = voice_state == UserVoiceState::Speaking;
+    self.voice_state = voice_state;
+
+    if is_speaking && !was_speaking {
+      self.speaking_epoch += 1;
+    }
+
+    if was_speaking && !is_speaking {
+      self.lingering = true;
+      return Some(self.speaking_epoch);
+    }
+
+    None
+  }
 }
 
 use crate::payloads::WsVoiceState;
@@ -63,6 +85,7 @@ impl From<WsVoiceState> for User {
       camera: val.camera.unwrap_or_default(),
       volume: 100.,
       speaking_epoch: 0,
+      lingering: false,
     }
   }
 }
@@ -105,6 +128,7 @@ impl From<RpcVoiceState> for User {
       camera: false,
       volume: val.volume,
       speaking_epoch: 0,
+      lingering: false,
     }
   }
 }
@@ -130,5 +154,42 @@ impl From<&RpcVoiceState> for UserVoiceState {
     } else {
       UserVoiceState::NotSpeaking
     }
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn user(voice_state: UserVoiceState) -> User {
+    User {
+      name: "user".into(),
+      id: "1".into(),
+      avatar: String::new(),
+      voice_state,
+      streaming: false,
+      camera: false,
+      volume: 100.,
+      speaking_epoch: 0,
+      lingering: false,
+    }
+  }
+
+  #[test]
+  fn linger_starts_only_when_speaking_ends() {
+    let mut u = user(UserVoiceState::NotSpeaking);
+
+    assert_eq!(u.set_voice_state(UserVoiceState::Speaking), None);
+    assert_eq!(u.speaking_epoch, 1);
+    assert_eq!(u.set_voice_state(UserVoiceState::Speaking), None);
+    assert_eq!(u.speaking_epoch, 1);
+    assert!(!u.lingering);
+
+    assert_eq!(u.set_voice_state(UserVoiceState::Muted), Some(1));
+    assert!(u.lingering);
+
+    u.lingering = false;
+    assert_eq!(u.set_voice_state(UserVoiceState::NotSpeaking), None);
+    assert!(!u.lingering);
   }
 }

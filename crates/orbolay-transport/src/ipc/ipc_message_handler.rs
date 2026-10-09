@@ -127,7 +127,9 @@ pub fn handle_ipc_message(
           .cloned()
           .unwrap_or_else(|| data.user.username.clone());
         user.avatar = data.user.avatar.clone().unwrap_or_default();
-        user.voice_state = UserVoiceState::from(&data);
+        if let Some(epoch) = user.set_voice_state(UserVoiceState::from(&data)) {
+          app.end_linger_later(user.id.clone(), epoch);
+        }
         user.streaming = false;
         user.volume = data.volume;
       } else {
@@ -187,8 +189,9 @@ pub fn handle_ipc_message(
             if let Some(user) = state.voice_users.iter_mut().find(|user| user.id == user_id)
               && user.speaking_epoch == epoch
               && user.voice_state == UserVoiceState::Speaking
+              && let Some(epoch) = user.set_voice_state(UserVoiceState::NotSpeaking)
             {
-              user.voice_state = UserVoiceState::NotSpeaking;
+              app.end_linger_later(user.id.clone(), epoch);
             }
           });
         });
@@ -206,13 +209,17 @@ pub fn handle_ipc_message(
         .iter_mut()
         .find(|user| user.id == current_user_id)
       {
-        user.voice_state = if data.deaf {
+        let voice_state = if data.deaf {
           UserVoiceState::Deafened
         } else if data.mute {
           UserVoiceState::Muted
         } else {
           UserVoiceState::NotSpeaking
         };
+
+        if let Some(epoch) = user.set_voice_state(voice_state) {
+          app.end_linger_later(user.id.clone(), epoch);
+        }
       }
     }
     "VOICE_CONNECTION_STATUS" => {
