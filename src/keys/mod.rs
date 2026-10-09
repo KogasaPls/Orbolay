@@ -9,7 +9,7 @@ use std::time::Duration;
 use rdev::{Event, grab, listen};
 
 use orbolay_core::app_state::SharedAppState;
-use orbolay_logging::warn;
+use orbolay_logging::{log, warn};
 
 use orbolay_keys::{
   DEFAULT_OVERLAY_TOGGLE, KeyEvent, KeyState, Keybind, default_keybinds, strings_to_keys,
@@ -20,12 +20,25 @@ pub fn watch_keybinds(shared: SharedAppState, keybind_tx: flume::Sender<KeyEvent
   let keybinds: Arc<RwLock<Vec<Keybind>>> = Arc::new(RwLock::new(default_keybinds()));
   let recording = shared.read().unwrap().recording_keybind.clone();
 
-  // Poll config every second to sync keybind/enabled state
+  if !shared
+    .read()
+    .unwrap()
+    .config
+    .is_keybind_enabled
+    .unwrap_or(true)
+  {
+    log!("Global keybinds are disabled; not watching input devices until enabled");
+  }
+
+  // Poll config every second to sync keybind/enabled state, and start the
+  // listener the first time keybinds are enabled
   {
     let enabled = enabled.clone();
     let keybinds = keybinds.clone();
     let shared = shared.clone();
     thread::spawn(move || {
+      let mut listening = false;
+
       loop {
         let (is_enabled, overlay_keybind) = {
           let state = shared.read().unwrap();
@@ -36,6 +49,16 @@ pub fn watch_keybinds(shared: SharedAppState, keybind_tx: flume::Sender<KeyEvent
         };
 
         enabled.store(is_enabled, Ordering::Relaxed);
+
+        if is_enabled && !listening {
+          listening = true;
+          start_listener(
+            enabled.clone(),
+            keybinds.clone(),
+            recording.clone(),
+            keybind_tx.clone(),
+          );
+        }
 
         let overlay_keys = strings_to_keys(
           overlay_keybind
@@ -58,8 +81,14 @@ pub fn watch_keybinds(shared: SharedAppState, keybind_tx: flume::Sender<KeyEvent
       }
     });
   }
+}
 
-  // Key listener thread
+fn start_listener(
+  enabled: Arc<AtomicBool>,
+  keybinds: Arc<RwLock<Vec<Keybind>>>,
+  recording: Arc<AtomicBool>,
+  keybind_tx: flume::Sender<KeyEvent>,
+) {
   thread::spawn(move || {
     let keybind_tx_grab = keybind_tx.clone();
     let enabled_grab = enabled.clone();
