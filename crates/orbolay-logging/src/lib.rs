@@ -1,10 +1,22 @@
 use std::fmt::Display;
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::Local;
 use colored::Colorize;
 
+static DEBUG: AtomicBool = AtomicBool::new(false);
+
+pub fn set_debug(enabled: bool) {
+  DEBUG.store(enabled, Ordering::Relaxed);
+}
+
+pub fn debug_enabled() -> bool {
+  DEBUG.load(Ordering::Relaxed)
+}
+
 pub enum LogKind {
+  Debug,
   Info,
   Success,
   Warn,
@@ -13,6 +25,7 @@ pub enum LogKind {
 
 pub fn log_impl(s: impl AsRef<str> + Display, kind: Option<LogKind>) {
   let status = match kind {
+    Some(LogKind::Debug) => "DBUG".dimmed(),
     Some(LogKind::Info) => "INFO".blue(),
     Some(LogKind::Success) => "DONE".green(),
     Some(LogKind::Warn) => "WARN".yellow(),
@@ -27,6 +40,15 @@ pub fn log_impl(s: impl AsRef<str> + Display, kind: Option<LogKind>) {
     status,
     s
   );
+}
+
+#[macro_export]
+macro_rules! debug {
+  ($($arg:tt)*) => {
+    if $crate::debug_enabled() {
+      $crate::log_impl(format!($($arg)*), Some($crate::LogKind::Debug))
+    }
+  };
 }
 
 #[macro_export]

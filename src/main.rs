@@ -32,6 +32,8 @@ use crate::{
   notifications::create_notification_thread,
 };
 
+#[cfg(target_os = "linux")]
+mod control;
 mod display;
 #[cfg(not(target_os = "macos"))]
 mod keys;
@@ -70,12 +72,17 @@ pub struct Args {
   #[options(help = "Open the configuration window")]
   config: bool,
 
+  #[cfg(target_os = "linux")]
+  #[options(help = "Toggle the overlay of the running instance")]
+  toggle: bool,
+
   #[options(help = "Target application to launch (if any)", free)]
   target: Vec<String>,
 }
 
 fn main() {
   let args = Args::parse_args_default_or_exit();
+  orbolay_logging::set_debug(args.debug);
 
   if args.help_requested() {
     println!("{}", Args::usage());
@@ -89,6 +96,15 @@ fn main() {
       APP_VERSION.unwrap_or("0.0.0"),
       GIT_HASH.unwrap_or("unknown")
     );
+    std::process::exit(0);
+  }
+
+  #[cfg(target_os = "linux")]
+  if args.toggle {
+    if let Err(e) = control::send("toggle") {
+      eprintln!("orbolay: toggle failed: {}", e);
+      std::process::exit(1);
+    }
     std::process::exit(0);
   }
 
@@ -217,6 +233,9 @@ fn app() -> impl IntoElement {
     if !args.debug {
       window::set_clickable(false);
     }
+
+    #[cfg(target_os = "linux")]
+    control::listen(keybind_tx.clone());
 
     #[cfg(not(target_os = "macos"))]
     keys::watch_keybinds(shared.clone(), keybind_tx);
