@@ -49,7 +49,7 @@ impl Component for VoiceSection {
         DisplayVoiceMembers::Always => true,
         DisplayVoiceMembers::AlwaysSemiTransparent => true,
         DisplayVoiceMembers::WhenSpeaking => {
-          user.voice_state == UserVoiceState::Speaking || self.is_open
+          user.voice_state == UserVoiceState::Speaking || user.lingering || self.is_open
         }
       })
       .collect();

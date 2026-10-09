@@ -165,7 +165,9 @@ pub fn handle_ws_message(
             if data.state.streaming.is_none() {
               data.state.streaming = Some(user.streaming);
             }
-            user.voice_state = data.state.clone().into();
+            if let Some(epoch) = user.set_voice_state(data.state.clone().into()) {
+              app.end_linger_later(user.id.clone(), epoch);
+            }
             user.streaming = data.state.streaming.unwrap_or_default();
           } else {
             state.voice_users.push(data.state.into());
@@ -218,4 +220,86 @@ pub fn handle_ws_message(
   }
 
   Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+  use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+  };
+
+  use orbolay_core::{
+    app_state::AppState,
+    user::{User, UserVoiceState},
+  };
+  use serde_json::json;
+
+  use super::*;
+
+  fn app_with_user(linger_secs: f32) -> AppHandle {
+    let mut state = AppState::new();
+    state.config.voice_linger_secs = linger_secs;
+    state.current_channel = "c".into();
+    state.voice_users = vec![User {
+      name: "user".into(),
+      id: "u".into(),
+      avatar: String::new(),
+      voice_state: UserVoiceState::NotSpeaking,
+      streaming: false,
+      camera: false,
+      volume: 100.,
+      speaking_epoch: 0,
+      lingering: false,
+    }];
+    let (redraw_tx, _redraw_rx) = flume::unbounded();
+    AppHandle::new(Arc::new(RwLock::new(state)), redraw_tx)
+  }
+
+  fn speaking(app: &AppHandle, speaking: bool) {
+    let msg = BridgeMessage {
+      cmd: "VOICE_STATE_UPDATE".into(),
+      data: json!({ "state": { "userId": "u", "channelId": "c", "speaking": speaking } }),
+    };
+    handle_ws_message(&msg, app.clone()).unwrap();
+  }
+
+  fn user_state(app: &AppHandle) -> (UserVoiceState, bool) {
+    app.read(|state| {
+      let user = &state.voice_users[0];
+      (user.voice_state.clone(), user.lingering)
+    })
+  }
+
+  #[test]
+  fn user_lingers_after_speaking() {
+    let app = app_with_user(0.1);
+
+    speaking(&app, true);
+    assert_eq!(user_state(&app), (UserVoiceState::Speaking, false));
+
+    speaking(&app, false);
+    assert_eq!(user_state(&app), (UserVoiceState::NotSpeaking, true));
+
+    std::thread::sleep(Duration::from_millis(200));
+    assert_eq!(user_state(&app), (UserVoiceState::NotSpeaking, false));
+  }
+
+  #[test]
+  fn speaking_again_restarts_the_linger() {
+    let app = app_with_user(0.15);
+
+    speaking(&app, true);
+    speaking(&app, false);
+    std::thread::sleep(Duration::from_millis(75));
+    speaking(&app, true);
+    speaking(&app, false);
+
+    // The first stop's timer has fired by now, but must not end the second linger
+    std::thread::sleep(Duration::from_millis(125));
+    assert_eq!(user_state(&app), (UserVoiceState::NotSpeaking, true));
+
+    std::thread::sleep(Duration::from_millis(150));
+    assert_eq!(user_state(&app), (UserVoiceState::NotSpeaking, false));
+  }
 }

@@ -1,6 +1,7 @@
 use std::{
   collections::HashMap,
   sync::{Arc, RwLock, atomic::AtomicBool},
+  time::Duration,
 };
 
 use crate::{
@@ -63,6 +64,25 @@ impl AppHandle {
 
   pub fn redraw(&self) {
     let _ = self.redraw_tx.send(());
+  }
+
+  /// Stop showing a user who stopped speaking once the configured linger passes,
+  /// unless they spoke again in the meantime
+  pub fn end_linger_later(&self, user_id: String, epoch: u64) {
+    let app = self.clone();
+    std::thread::spawn(move || {
+      let linger = app.read(|state| state.config.voice_linger_secs);
+      std::thread::sleep(Duration::try_from_secs_f32(linger).unwrap_or_default());
+      app.update_if_changed(|state| {
+        match state.voice_users.iter_mut().find(|user| user.id == user_id) {
+          Some(user) if user.lingering && user.speaking_epoch == epoch => {
+            user.lingering = false;
+            true
+          }
+          _ => false,
+        }
+      });
+    });
   }
 }
 

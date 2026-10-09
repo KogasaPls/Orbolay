@@ -3,7 +3,7 @@ use freya::prelude::*;
 
 use orbolay_core::{
   app_state::{AppHandle, SharedAppState},
-  config::{Config, TransportMode, config_dir, load_config, save_config},
+  config::{Config, DisplayVoiceMembers, TransportMode, config_dir, load_config, save_config},
   dirs::{TEMPLATES_DIR, ensure_config_dirs},
   payloads::Notification,
 };
@@ -405,6 +405,23 @@ fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {
         cfg.display_voice_members = Some(v.into());
       }),
       disabled: false,
+    })
+    .child(divider())
+    .child(SettingRow {
+      name: "Speaking Linger (s)".into(),
+      description: Some("How long voice users stay visible after they stop speaking".into()),
+      kind: SettingKind::Input(Some(config.voice_linger_secs.to_string())),
+      on_change: make_updater(app.clone(), local_config, |cfg, v| {
+        if let Ok(n) = v.trim().parse::<f32>()
+          && n.is_finite()
+        {
+          cfg.voice_linger_secs = n.max(0.);
+        }
+      }),
+      disabled: !matches!(
+        config.display_voice_members,
+        Some(DisplayVoiceMembers::WhenSpeaking)
+      ),
     })
     .child(divider())
     .child(SettingRow {

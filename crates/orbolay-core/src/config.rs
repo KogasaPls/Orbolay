@@ -81,6 +81,10 @@ fn default_ui_scale() -> f32 {
   1.0
 }
 
+fn default_voice_linger_secs() -> f32 {
+  2.
+}
+
 fn default_true() -> bool {
   true
 }
@@ -111,6 +115,8 @@ pub struct Config {
   pub user_offset_y: i32,
   #[serde(default)]
   pub display_voice_members: Option<DisplayVoiceMembers>,
+  #[serde(default = "default_voice_linger_secs")]
+  pub voice_linger_secs: f32,
   #[serde(default)]
   pub messages_semitransparent: bool,
   #[serde(default)]
@@ -150,6 +156,7 @@ impl Default for Config {
       user_offset_x: 0,
       user_offset_y: 0,
       display_voice_members: Some(DisplayVoiceMembers::AlwaysSemiTransparent),
+      voice_linger_secs: default_voice_linger_secs(),
       messages_semitransparent: false,
       is_keybind_enabled: None,
       transport_mode: TransportMode::Ipc,
