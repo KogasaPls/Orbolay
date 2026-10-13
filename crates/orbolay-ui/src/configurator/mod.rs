@@ -8,6 +8,7 @@ use orbolay_core::{
   config::{Config, load_config},
 };
 
+use crate::populate_monitor_cache;
 use crate::util::theme::{GRAY, MUTED_GRAY};
 
 use sections::{Section, Settings, apply_config};
@@ -89,6 +90,12 @@ fn configurator_window(app: AppHandle, standalone: bool) -> WindowConfig {
     .with_size(WIDTH as f64, HEIGHT as f64)
     .with_min_size(WIDTH as f64, 400.)
     .with_title("Orbolay Configurator")
+    .with_window_attributes(|window, event_loop| {
+      let monitors: Vec<_> = event_loop.available_monitors().collect();
+      let primary = event_loop.primary_monitor();
+      populate_monitor_cache(primary.as_ref(), &monitors);
+      window
+    })
 }
 
 fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {

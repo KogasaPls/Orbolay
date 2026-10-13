@@ -1,11 +1,9 @@
 use freya::prelude::{Platform, WinitPlatformExt};
 use winit::{dpi::PhysicalSize, monitor::MonitorHandle};
 
-use orbolay_core::{
-  config::load_config,
-  monitors::{MonitorInfo, set_monitors},
-};
+use orbolay_core::config::load_config;
 use orbolay_logging::warn;
+use orbolay_ui::populate_monitor_cache;
 
 use crate::window::WINDOW_ID;
 
@@ -13,7 +11,8 @@ pub fn select_monitor<'a>(
   primary: Option<&MonitorHandle>,
   monitors: &'a [MonitorHandle],
 ) -> Option<&'a MonitorHandle> {
-  let display_idx = load_config().unwrap_or_default().display_idx;
+  let config = load_config().unwrap_or_default();
+  let display_idx = config.display_index(monitors.iter().map(MonitorHandle::name));
 
   if let Some(idx) = display_idx {
     if let Some(monitor) = monitors.get(idx) {
@@ -25,6 +24,10 @@ pub fn select_monitor<'a>(
       idx,
       monitors.len()
     );
+  }
+
+  if let Some(name) = config.display_name.as_deref() {
+    warn!("Saved display name {name:?} was not found; using the primary display");
   }
 
   let primary_idx = primary
@@ -39,25 +42,6 @@ pub fn window_size_for_display(monitor: &MonitorHandle) -> PhysicalSize<u32> {
   // https://discourse.glfw.org/t/black-screen-when-setting-window-to-transparent-and-size-to-1920x1080/2585/5
   // We do -1 specifically on the height to fix the Windows hidden taskbar thing
   PhysicalSize::new(size.width + 1, size.height.saturating_sub(1))
-}
-
-/// Share the monitor list so it matches up everywhere
-pub fn populate_monitor_cache(primary: Option<&MonitorHandle>, monitors: &[MonitorHandle]) {
-  let infos: Vec<MonitorInfo> = monitors
-    .iter()
-    .enumerate()
-    .map(|(idx, m)| {
-      let size = m.size();
-      MonitorInfo {
-        name: m.name().unwrap_or_else(|| format!("Display {idx}")),
-        is_primary: primary.map(|p| p == m).unwrap_or(idx == 0),
-        width: size.width,
-        height: size.height,
-      }
-    })
-    .collect();
-
-  set_monitors(infos);
 }
 
 pub fn update_monitor() {

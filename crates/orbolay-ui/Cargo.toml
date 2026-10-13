@@ -6,7 +6,6 @@ rust-version = "1.95"
 
 [dependencies]
 bytes = { workspace = true }
-display-info = { workspace = true }
 flume = { workspace = true }
 freya = { workspace = true }
 orbolay-core = { path = "../orbolay-core" }
@@ -17,6 +16,7 @@ scraper = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ureq = { workspace = true }
+winit = { workspace = true }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 rdev = { workspace = true }
