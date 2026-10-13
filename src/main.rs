@@ -24,13 +24,13 @@ use orbolay_transport::{create_transport_thread, maybe_notify_update, start_conf
 use orbolay_ui::{
   components::{MessagesSection, SettingsButton, Soundboard, VoiceControls, VoiceSection},
   config::CornerAlignment,
-  open_configurator, open_configurator_standalone,
+  open_configurator, open_configurator_standalone, populate_monitor_cache,
   util::{scale::UiScale, theme},
 };
 use winit::window::WindowLevel;
 
 use crate::{
-  display::{populate_monitor_cache, select_monitor, update_monitor, window_size_for_display},
+  display::{select_monitor, update_monitor, window_size_for_display},
   manager::OverlayManager,
   notifications::create_notification_thread,
 };
@@ -106,6 +106,20 @@ fn main() {
 
   ensure_config_dirs();
 
+  let config = load_config().unwrap_or_default();
+
+  if let Some(software_rendering) = config.software_rendering
+    && software_rendering
+  {
+    unsafe { std::env::set_var("FREYA_RENDERER", "software") };
+  }
+
+  let wayland_display = std::env::var("WAYLAND_DISPLAY");
+
+  if config.xwayland {
+    unsafe { std::env::set_var("WAYLAND_DISPLAY", "") };
+  }
+
   if args.config {
     open_configurator_standalone();
     std::process::exit(0);
@@ -146,20 +160,6 @@ fn main() {
       .show()
       .expect("Failed to show message dialog");
     std::process::exit(0);
-  }
-
-  let config = load_config().unwrap_or_default();
-
-  if let Some(software_rendering) = config.software_rendering
-    && software_rendering
-  {
-    unsafe { std::env::set_var("FREYA_RENDERER", "software") };
-  }
-
-  let wayland_display = std::env::var("WAYLAND_DISPLAY");
-
-  if config.xwayland {
-    unsafe { std::env::set_var("WAYLAND_DISPLAY", "") };
   }
 
   #[cfg(target_os = "linux")]
@@ -331,7 +331,9 @@ fn app() -> impl IntoElement {
 
     start_config_watcher(app.clone(), |old_config, new_config| {
       // Reposition the window when the target monitor changes
-      if old_config.display_idx != new_config.display_idx {
+      if old_config.display_name != new_config.display_name
+        || old_config.display_idx != new_config.display_idx
+      {
         update_monitor();
       }
     });

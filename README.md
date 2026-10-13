@@ -197,6 +197,13 @@ orbolay -- %command%
 On first run, Orbolay should open the configurator automatically. In the future, it can be opened by clicking the settings cog in the
 overlay, or by running `orbolay --config` in any terminal.
 
+On Linux, the Display setting saves the connector name so monitor enumeration changes
+will not move the overlay to another connector. You can also set `"displayName": "DP-1"`
+in `~/.config/orbolay/config.json`. The name takes precedence over the legacy zero-based
+`displayIdx`; if the named display is unavailable, Orbolay falls back to the primary
+display, or the first detected display when no primary is reported. Existing configurations
+with only `displayIdx` keep their current behavior until a display is selected again.
+
 # Custom Templates
 
 Components within Orbolay can be customized with HTML and CSS! See [./TEMPLATES.md](./TEMPLATES.md) for more information.

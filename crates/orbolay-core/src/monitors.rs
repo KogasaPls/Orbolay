@@ -3,6 +3,8 @@ use std::sync::Mutex;
 #[derive(Debug, Clone, PartialEq)]
 pub struct MonitorInfo {
   pub name: String,
+  /// The name used for monitor matching, separate from the settings label.
+  pub native_name: Option<String>,
   pub is_primary: bool,
   pub width: u32,
   pub height: u32,

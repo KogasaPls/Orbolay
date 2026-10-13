@@ -98,6 +98,8 @@ pub struct Config {
   #[serde(default)]
   pub display_idx: Option<usize>,
   #[serde(default)]
+  pub display_name: Option<String>,
+  #[serde(default)]
   pub port: Option<u16>,
   #[serde(default = "default_true")]
   pub enable_message_notifications: bool,
@@ -141,12 +143,23 @@ pub struct Config {
   pub notification_template: Option<String>,
 }
 
+impl Config {
+  /// Prefer the native display name; use the legacy index only when no name is saved.
+  pub fn display_index(&self, mut names: impl Iterator<Item = Option<String>>) -> Option<usize> {
+    match self.display_name.as_deref() {
+      Some(name) => names.position(|candidate| candidate.as_deref() == Some(name)),
+      None => self.display_idx,
+    }
+  }
+}
+
 impl Default for Config {
   fn default() -> Self {
     Self {
       #[cfg(not(target_os = "macos"))]
       overlay_keybind: default_overlay_keybind(),
       display_idx: None,
+      display_name: None,
       port: Some(6888),
       enable_message_notifications: true,
       message_alignment: None,
@@ -193,4 +206,67 @@ pub fn load_config() -> Option<Config> {
 
 pub fn is_first_run() -> bool {
   load_config().is_none()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::Config;
+  use serde_json::json;
+
+  fn names(displays: &[&str]) -> impl Iterator<Item = Option<String>> {
+    displays.iter().map(|name| Some((*name).to_owned()))
+  }
+
+  #[test]
+  fn named_display_survives_monitor_reordering() {
+    let config: Config = serde_json::from_value(json!({
+      "displayName": "DP-1",
+      "displayIdx": 1
+    }))
+    .unwrap();
+
+    assert_eq!(
+      config.display_index(names(&["HDMI-A-1", "DP-1", "DP-2"])),
+      Some(1)
+    );
+    assert_eq!(
+      config.display_index(names(&["HDMI-A-1", "DP-2", "DP-1"])),
+      Some(2)
+    );
+  }
+
+  #[test]
+  fn missing_named_display_does_not_use_a_stale_index() {
+    let config: Config = serde_json::from_value(json!({
+      "displayName": "DP-1",
+      "displayIdx": 1
+    }))
+    .unwrap();
+
+    assert_eq!(config.display_index(names(&["HDMI-A-1", "DP-2"])), None);
+  }
+
+  #[test]
+  fn display_name_can_be_configured_without_an_index() {
+    let config: Config = serde_json::from_value(json!({"displayName": "DP-1"})).unwrap();
+    assert_eq!(config.display_index(names(&["DP-2", "DP-1"])), Some(1));
+  }
+
+  #[test]
+  fn legacy_display_index_is_preserved() {
+    let config: Config = serde_json::from_value(json!({"displayIdx": 1})).unwrap();
+    assert_eq!(config.display_index(names(&["DP-2", "DP-1"])), Some(1));
+  }
+
+  #[test]
+  fn display_name_survives_config_round_trip() {
+    let config: Config = serde_json::from_value(json!({
+      "displayName": "DP-1",
+      "displayIdx": 1
+    }))
+    .unwrap();
+
+    let saved = serde_json::to_value(&config).unwrap();
+    assert_eq!(saved["displayName"], "DP-1");
+  }
 }

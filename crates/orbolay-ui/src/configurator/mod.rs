@@ -1,15 +1,15 @@
-use display_info::DisplayInfo;
 use freya::prelude::*;
 
 use orbolay_core::{
   app_state::{AppHandle, SharedAppState},
   config::{Config, DisplayVoiceMembers, TransportMode, config_dir, load_config, save_config},
   dirs::{TEMPLATES_DIR, ensure_config_dirs},
-  monitors::{MonitorInfo, monitors_list},
+  monitors::monitors_list,
   payloads::Notification,
 };
 use orbolay_logging::warn;
 
+use crate::populate_monitor_cache;
 use crate::util::theme::{GRAY, LIGHT_GRAY, MUTED_GRAY, RED, TRANSPARENT, from_tuple, to_tuple};
 use crate::util::{
   notification_template::list_notification_templates, user_template::list_user_templates,
@@ -85,6 +85,12 @@ fn configurator_window(app: AppHandle, standalone: bool) -> WindowConfig {
     .with_size(WIDTH as f64, HEIGHT as f64)
     .with_title("Orbolay Configurator")
     .with_resizable(false)
+    .with_window_attributes(|window, event_loop| {
+      let monitors: Vec<_> = event_loop.available_monitors().collect();
+      let primary = event_loop.primary_monitor();
+      populate_monitor_cache(primary.as_ref(), &monitors);
+      window
+    })
 }
 
 macro_rules! make_updater {
@@ -182,23 +188,7 @@ fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {
     .clone()
     .unwrap_or_else(|| "Default".to_string());
 
-  let all_displays = {
-    let cached = monitors_list();
-    if !cached.is_empty() {
-      cached
-    } else {
-      DisplayInfo::all()
-        .unwrap_or_default()
-        .into_iter()
-        .map(|d| MonitorInfo {
-          name: d.friendly_name,
-          is_primary: d.is_primary,
-          width: d.width,
-          height: d.height,
-        })
-        .collect()
-    }
-  };
+  let all_displays = monitors_list();
   let display_names: Vec<String> = all_displays
     .iter()
     .map(|d| format!("{} ({}x{})", d.name, d.width, d.height))
@@ -289,12 +279,13 @@ fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {
       kind: SettingKind::Dropdown(
         display_names.clone(),
         config
-          .display_idx
+          .display_index(all_displays.iter().map(|d| d.native_name.clone()))
           .and_then(|i| display_names.get(i).cloned()),
       ),
       on_change: make_updater(app.clone(), local_config, move |cfg, v| {
         if let Some(idx) = display_names_for_update.iter().position(|name| name == &v) {
-          cfg.display_idx = Some(idx);
+          cfg.display_name = all_displays[idx].native_name.clone();
+          cfg.display_idx = cfg.display_name.is_none().then_some(idx);
         }
       }),
       disabled: false,
