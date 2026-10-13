@@ -1,13 +1,12 @@
 use std::str::FromStr;
 
-use display_info::DisplayInfo;
 use freya::prelude::*;
 
 use orbolay_core::{
   app_state::AppHandle,
   config::{Config, DisplayVoiceMembers, TransportMode, config_dir, save_config},
   dirs::{TEMPLATES_DIR, ensure_config_dirs},
-  monitors::{MonitorInfo, monitors_list},
+  monitors::monitors_list,
   payloads::Notification,
 };
 use orbolay_logging::warn;
@@ -77,24 +76,6 @@ fn open_templates_folder() {
   if let Err(err) = open::that(&templates_dir) {
     warn!("Failed to open templates folder: {err}");
   }
-}
-
-fn available_displays() -> Vec<MonitorInfo> {
-  let cached = monitors_list();
-  if !cached.is_empty() {
-    return cached;
-  }
-
-  DisplayInfo::all()
-    .unwrap_or_default()
-    .into_iter()
-    .map(|d| MonitorInfo {
-      name: d.friendly_name,
-      is_primary: d.is_primary,
-      width: d.width,
-      height: d.height,
-    })
-    .collect()
 }
 
 pub fn apply_config(
@@ -377,12 +358,13 @@ impl Settings {
   fn general(&self) -> Vec<Element> {
     let config = &self.config;
 
-    let display_names: Vec<String> = available_displays()
+    let all_displays = monitors_list();
+    let display_names: Vec<String> = all_displays
       .iter()
       .map(|d| format!("{} ({}x{})", d.name, d.width, d.height))
       .collect();
     let selected_display = config
-      .display_idx
+      .display_index(all_displays.iter().map(|d| d.native_name.clone()))
       .filter(|idx| *idx < display_names.len())
       .unwrap_or(0);
     let scale_label = ui_scale_label(config.ui_scale.clamp(0.5, 2.0));
@@ -402,7 +384,10 @@ impl Settings {
             "The display to show the overlay on",
             display_names,
             selected_display,
-            |cfg, idx| cfg.display_idx = Some(idx),
+            move |cfg, idx| {
+              cfg.display_name.clone_from(&all_displays[idx].native_name);
+              cfg.display_idx = cfg.display_name.is_none().then_some(idx);
+            },
           ),
           self.dropdown(
             "UI Scale",
