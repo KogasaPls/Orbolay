@@ -1,21 +1,11 @@
 use std::sync::{
     Arc,
-    atomic::{
-        AtomicBool,
-        Ordering,
-    },
+    atomic::{AtomicBool, Ordering},
 };
 
 use blitz_traits::{
-    navigation::{
-        NavigationOptions,
-        NavigationProvider,
-    },
-    net::{
-        NetHandler,
-        NetProvider,
-        Request,
-    },
+    navigation::{NavigationOptions, NavigationProvider},
+    net::{NetHandler, NetProvider, Request},
     shell::ShellProvider,
 };
 use futures_channel::mpsc::UnboundedSender;

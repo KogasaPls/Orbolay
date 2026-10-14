@@ -2,80 +2,41 @@ use std::{
     str::FromStr,
     sync::{
         Arc,
-        atomic::{
-            AtomicBool,
-            Ordering,
-        },
+        atomic::{AtomicBool, Ordering},
     },
     time::Instant,
 };
 
 use atomic_refcell::AtomicRefCell;
-use blitz_dom::{
-    Document,
-    DocumentConfig,
-};
+use blitz_dom::{Document, DocumentConfig};
 use blitz_html::HtmlDocument;
 use blitz_paint::paint_scene;
 use blitz_traits::{
     events::{
-        BlitzKeyEvent,
-        BlitzPointerEvent,
-        BlitzPointerId,
-        BlitzWheelDelta,
-        BlitzWheelEvent,
-        KeyState,
-        MouseEventButton,
-        MouseEventButtons,
-        Point,
-        PointerCoords,
-        PointerDetails,
+        BlitzKeyEvent, BlitzPointerEvent, BlitzPointerId, BlitzWheelDelta, BlitzWheelEvent,
+        KeyState, MouseEventButton, MouseEventButtons, Point, PointerCoords, PointerDetails,
         UiEvent,
     },
     navigation::NavigationProvider,
     net::NetProvider,
-    shell::{
-        ColorScheme,
-        ShellProvider,
-        Viewport,
-    },
+    shell::{ColorScheme, ShellProvider, Viewport},
 };
 use freya_core::prelude::{
-    Bytes,
-    Code as FreyaCode,
-    Key as FreyaKey,
-    Modifiers as FreyaModifiers,
+    Bytes, Code as FreyaCode, Key as FreyaKey, Modifiers as FreyaModifiers,
     MouseButton as FreyaMouseButton,
 };
-use freya_engine::prelude::{
-    Canvas,
-    Matrix,
-    Picture,
-    PictureRecorder,
-    Rect,
-};
+use freya_engine::prelude::{Canvas, Matrix, Picture, PictureRecorder, Rect};
 use futures_channel::mpsc::UnboundedSender;
 use keyboard_types::{
-    Code as BlitzCode,
-    Key as BlitzKey,
-    Location as BlitzLocation,
-    Modifiers as BlitzModifiers,
+    Code as BlitzCode, Key as BlitzKey, Location as BlitzLocation, Modifiers as BlitzModifiers,
 };
 use smol_str::SmolStr;
 
 use crate::{
-    anyrender::{
-        SkiaSceneCache,
-        SkiaScenePainter,
-    },
+    anyrender::{SkiaSceneCache, SkiaScenePainter},
     cache::ResourceCache,
     handle::ElementHit,
-    net::{
-        FetchRequest,
-        FreyaNavigationProvider,
-        FreyaShellProvider,
-        HttpNetProvider,
-    },
+    net::{FetchRequest, FreyaNavigationProvider, FreyaShellProvider, HttpNetProvider},
 };
 
 /// Owns a parsed Blitz document and paints it directly into Freya's Skia canvas.
@@ -321,13 +282,7 @@ impl BlitzState {
 }
 
 fn font_context(fonts: &[Bytes]) -> Option<blitz_dom::FontContext> {
-    use parley::fontique::{
-        Blob,
-        Collection,
-        CollectionOptions,
-        GenericFamily,
-        SourceCache,
-    };
+    use parley::fontique::{Blob, Collection, CollectionOptions, GenericFamily, SourceCache};
 
     if fonts.is_empty() {
         return None;

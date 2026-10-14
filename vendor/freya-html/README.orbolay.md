@@ -6,6 +6,8 @@ inheritance with equivalent explicit dependencies; Cargo.lock pins the git depen
 
 Changes to the original source:
 
+- `rustfmt.toml` and source formatting: use stable rustfmt options to match
+  Orbolay's CI toolchain.
 - `src/anyrender/scene.rs`: reuse native typefaces across fresh font blob identities
   and viewer remounts using exact font bytes and collection index. The thread-local
   LRU holds at most 16 fonts and 64 MiB of font bytes (one oversized font may occupy

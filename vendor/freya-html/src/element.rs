@@ -1,28 +1,11 @@
-use std::{
-    any::Any,
-    borrow::Cow,
-    cell::RefCell,
-    rc::Rc,
-};
+use std::{any::Any, borrow::Cow, cell::RefCell, rc::Rc};
 
 use freya_core::{
-    data::{
-        AccessibilityData,
-        LayoutData,
-    },
+    data::{AccessibilityData, LayoutData},
     diff_key::DiffKey,
-    element::{
-        Element,
-        ElementExt,
-        EventHandlerType,
-        RenderContext,
-    },
+    element::{Element, ElementExt, EventHandlerType, RenderContext},
     events::name::EventName,
-    prelude::{
-        AccessibilityExt,
-        EventHandlersExt,
-        LayoutExt,
-    },
+    prelude::{AccessibilityExt, EventHandlersExt, LayoutExt},
     tree::DiffModifies,
 };
 use freya_engine::prelude::ClipOp;

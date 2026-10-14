@@ -1,17 +1,10 @@
-use std::{
-    cell::RefCell,
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 use freya_core::prelude::*;
 use futures_lite::StreamExt;
 
 use crate::{
-    cache::ResourceCache,
-    element::Html,
-    handle::HtmlHandle,
-    net::FetchRequest,
-    state::BlitzState,
+    cache::ResourceCache, element::Html, handle::HtmlHandle, net::FetchRequest, state::BlitzState,
 };
 
 /// Embeds an HTML + CSS document rendered by [Blitz](https://github.com/DioxusLabs/blitz), driven by an [HtmlHandle].

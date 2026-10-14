@@ -1,8 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use freya_core::prelude::*;
 
@@ -218,10 +214,7 @@ pub fn use_html(init: impl FnOnce() -> HtmlSource) -> HtmlHandle {
 
 #[cfg(test)]
 mod tests {
-    use crate::handle::{
-        HtmlHistory,
-        HtmlSource,
-    };
+    use crate::handle::{HtmlHistory, HtmlSource};
 
     #[test]
     fn replacing_inline_html_discards_back_and_forward_revisions() {

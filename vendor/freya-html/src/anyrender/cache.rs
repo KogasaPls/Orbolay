@@ -1,14 +1,8 @@
 // Adapted from https://github.com/DioxusLabs/anyrender/blob/main/crates/anyrender_skia/src/cache.rs
 
-use std::hash::{
-    Hash,
-    Hasher,
-};
+use std::hash::{Hash, Hasher};
 
-use hashbrown::{
-    Equivalent,
-    HashMap,
-};
+use hashbrown::{Equivalent, HashMap};
 
 struct CacheEntry<T> {
     resource: T,

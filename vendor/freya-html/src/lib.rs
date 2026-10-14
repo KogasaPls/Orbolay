@@ -35,21 +35,11 @@ mod net;
 mod state;
 
 pub use component::HtmlViewer;
-pub use handle::{
-    ElementHit,
-    HtmlHandle,
-    HtmlSource,
-    use_html,
-};
+pub use handle::{ElementHit, HtmlHandle, HtmlSource, use_html};
 
 pub mod prelude {
     pub use crate::{
         component::HtmlViewer,
-        handle::{
-            ElementHit,
-            HtmlHandle,
-            HtmlSource,
-            use_html,
-        },
+        handle::{ElementHit, HtmlHandle, HtmlSource, use_html},
     };
 }

@@ -1,59 +1,22 @@
 // Adapted from https://github.com/DioxusLabs/anyrender/blob/main/crates/anyrender_skia/src/scene.rs
 
-use std::{
-    cell::RefCell,
-    collections::VecDeque,
-    sync::Arc,
-};
+use std::{cell::RefCell, collections::VecDeque, sync::Arc};
 
 use anyrender::{
-    PaintScene,
-    RenderContext,
-    filters::{
-        Filter,
-        FilterEffect,
-        FilterId,
-        FilterInput,
-        component_transfer::TransferFunction,
-    },
+    PaintScene, RenderContext,
+    filters::{Filter, FilterEffect, FilterId, FilterInput, component_transfer::TransferFunction},
 };
 use freya_engine::prelude::{
-    BlurStyle,
-    Canvas,
-    Color,
-    ColorSpace,
-    Data,
-    Font,
-    FontArguments,
-    FontEdging as Edging,
-    FontHinting,
-    FontMgr,
-    GlyphId,
-    GlyphPositions,
-    ImageFilter,
-    MaskFilter,
-    Paint,
-    PaintCap,
-    PaintJoin,
-    PaintStyle,
-    PathEffect,
-    Point,
-    RRect,
-    Rect,
-    SaveLayerRec,
-    Shader,
-    Typeface,
-    VariationCoordinate as Coordinate,
-    VariationPosition,
+    BlurStyle, Canvas, Color, ColorSpace, Data, Font, FontArguments, FontEdging as Edging,
+    FontHinting, FontMgr, GlyphId, GlyphPositions, ImageFilter, MaskFilter, Paint, PaintCap,
+    PaintJoin, PaintStyle, PathEffect, Point, RRect, Rect, SaveLayerRec, Shader, Typeface,
+    VariationCoordinate as Coordinate, VariationPosition,
 };
 use peniko::color::AlphaColor;
 
 use crate::anyrender::{
     cache::{
-        FontCacheKey,
-        FontCacheKeyBorrowed,
-        GenerationalCache,
-        NormalizedTypefaceCacheKey,
+        FontCacheKey, FontCacheKeyBorrowed, GenerationalCache, NormalizedTypefaceCacheKey,
         NormalizedTypefaceCacheKeyBorrowed,
     },
     scene::sk_peniko::color4f_from_alpha_color,
@@ -680,11 +643,7 @@ fn convert_filter_effect(filter: &Filter, id: FilterId) -> Option<ImageFilter> {
     // Clone to avoid borrow checking issues. Cloning is cheap as filters are refcounted.
     let input_clone = input.clone();
 
-    use freya_engine::prelude::{
-        color_filters,
-        image_filters,
-        shaders,
-    };
+    use freya_engine::prelude::{color_filters, image_filters, shaders};
 
     let filter: Option<ImageFilter> = match &node.effect {
         FilterEffect::Flood(color) => {
@@ -806,54 +765,25 @@ fn convert_filter_effect(filter: &Filter, id: FilterId) -> Option<ImageFilter> {
 
 mod sk_peniko {
     use freya_engine::prelude::{
-        AlphaType as SkAlphaType,
-        BlendMode as SkBlendMode,
-        Color4f as SkColor4f,
-        ColorType as SkColorType,
-        Colors,
-        Data as SkData,
-        FilterMode,
-        ImageInfo as SkImageInfo,
-        MipmapMode,
-        PathFillType as SkPathFillType,
-        SamplingOptions as SkSamplingOptions,
-        Shader as SkShader,
-        TileMode as SkTileMode,
+        AlphaType as SkAlphaType, BlendMode as SkBlendMode, Color4f as SkColor4f,
+        ColorType as SkColorType, Colors, Data as SkData, FilterMode, ImageInfo as SkImageInfo,
+        MipmapMode, PathFillType as SkPathFillType, SamplingOptions as SkSamplingOptions,
+        Shader as SkShader, TileMode as SkTileMode,
         gradient::{
             self,
             interpolation::{
-                ColorSpace as SkGradientShaderColorSpace,
-                HueMethod as SkGradientShaderHueMethod,
+                ColorSpace as SkGradientShaderColorSpace, HueMethod as SkGradientShaderHueMethod,
             },
         },
         images,
         shaders::{
-            self,
-            linear_gradient,
-            radial_gradient,
-            sweep_gradient,
-            two_point_conical_gradient,
+            self, linear_gradient, radial_gradient, sweep_gradient, two_point_conical_gradient,
         },
     };
     use peniko::{
-        BlendMode,
-        Compose,
-        Extend,
-        Fill,
-        Gradient,
-        GradientKind,
-        ImageAlphaType,
-        ImageBrush,
-        ImageData,
-        ImageFormat,
-        Mix,
-        color::{
-            AlphaColor,
-            ColorSpaceTag,
-            DynamicColor,
-            HueDirection,
-            Srgb,
-        },
+        BlendMode, Compose, Extend, Fill, Gradient, GradientKind, ImageAlphaType, ImageBrush,
+        ImageData, ImageFormat, Mix,
+        color::{AlphaColor, ColorSpaceTag, DynamicColor, HueDirection, Srgb},
     };
 
     pub(super) fn shader_from_image_brush(
@@ -1155,22 +1085,10 @@ mod sk_peniko {
 
 mod sk_kurbo {
     use freya_engine::prelude::{
-        M44 as SkM44,
-        Matrix as SkMatrix,
-        Path as SkPath,
-        PathBuilder as SkPathBuilder,
-        Point as SkPoint,
-        RRect as SkRRect,
-        Rect as SkRect,
+        M44 as SkM44, Matrix as SkMatrix, Path as SkPath, PathBuilder as SkPathBuilder,
+        Point as SkPoint, RRect as SkRRect, Rect as SkRect,
     };
-    use kurbo::{
-        Affine,
-        PathEl,
-        Point,
-        Rect,
-        RoundedRect,
-        Shape,
-    };
+    use kurbo::{Affine, PathEl, Point, Rect, RoundedRect, Shape};
 
     pub(super) fn rect_from(rect: Rect) -> SkRect {
         SkRect::new(
@@ -1282,10 +1200,7 @@ mod tests {
 
     use freya_engine::prelude::PictureRecorder;
 
-    use crate::anyrender::scene::{
-        SkiaSceneCache,
-        SkiaScenePainter,
-    };
+    use crate::anyrender::scene::{SkiaSceneCache, SkiaScenePainter};
 
     #[test]
     fn identical_font_bytes_reuse_typeface_across_documents_and_view_remounts() {
@@ -1346,9 +1261,7 @@ mod tests {
     #[test]
     fn shared_typefaces_bound_entries_and_bytes() {
         use crate::anyrender::scene::{
-            SharedTypefaces,
-            TYPEFACE_CACHE_BYTES,
-            TYPEFACE_CACHE_ENTRIES,
+            SharedTypefaces, TYPEFACE_CACHE_BYTES, TYPEFACE_CACHE_ENTRIES,
         };
         let typeface = freya_engine::prelude::FontMgr::new()
             .new_from_data(
