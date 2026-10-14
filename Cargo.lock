@@ -2021,7 +2021,6 @@ dependencies = [
 [[package]]
 name = "freya-html"
 version = "0.5.0-rc.9"
-source = "git+https://github.com/marc2332/freya.git?branch=feat%2Fhtml-viewer-cache#db7503276e93f52932465865afa8a84a9ff1accf"
 dependencies = [
  "anyrender",
  "atomic_refcell",
@@ -2029,6 +2028,7 @@ dependencies = [
  "blitz-html",
  "blitz-paint",
  "blitz-traits",
+ "freya",
  "freya-components",
  "freya-core",
  "freya-engine",

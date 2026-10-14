@@ -1,0 +1,42 @@
+[package]
+name = "freya-html"
+version = "0.5.0-rc.9"
+description = "HTML + CSS rendering for Freya using Blitz"
+edition = "2024"
+license = "MIT"
+authors = ["Marc Espín <mespinsanz@gmail.com>"]
+repository = "https://github.com/marc2332/freya"
+keywords = ["gui", "ui", "desktop", "html", "css"]
+categories = ["gui"]
+
+[dependencies]
+freya-components = { git = "https://github.com/marc2332/freya.git", branch = "feat/html-viewer-cache", features = ["remote-asset"] }
+freya-core = { git = "https://github.com/marc2332/freya.git", branch = "feat/html-viewer-cache", }
+freya-engine = { git = "https://github.com/marc2332/freya.git", branch = "feat/html-viewer-cache", }
+tracing = "0.1.41"
+rustc-hash = "2.1.1"
+
+keyboard-types = "=0.7.0"
+smol_str = "0.3"
+
+futures-channel = "0.3.31"
+futures-lite = "2.6.1"
+parley = "0.11"
+
+blitz-dom = { version = "=0.3.0-beta.2", features = ["default", "floats"] }
+blitz-html = "=0.3.0-beta.2"
+blitz-paint = "=0.3.0-beta.2"
+blitz-traits = "=0.3.0-beta.2"
+atomic_refcell = "0.1"
+
+anyrender = "0.13"
+kurbo = "0.13.1"
+peniko = "0.6"
+hashbrown = "0.17.0"
+url = "2.5"
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+oaty = "0.2"
+
+[dev-dependencies]
+freya = { git = "https://github.com/marc2332/freya.git", branch = "feat/html-viewer-cache", features = ["engine", "html"] }
