@@ -5,8 +5,8 @@
 //! async runtime, open device, or `/dev/input` watcher exists until they are enabled again.
 
 use std::{
+  convert::Infallible,
   path::PathBuf,
-  sync::atomic::{AtomicBool, Ordering},
   time::{Duration, Instant},
 };
 
@@ -14,61 +14,61 @@ use evdev::{Device, EventStream, EventSummary};
 use log::{debug, info, warn};
 use notify::{EventKind, RecursiveMode, Watcher};
 use orbolay_core::{app_state::AppHandle, config::Config};
-use orbolay_keys::{Key, KeyEvent, KeyState, Keybind, strings_to_keys};
+use orbolay_keys::{Key, KeyState, Keybind, strings_to_keys};
 use tokio::task::JoinSet;
 
 const INPUT_DIR: &str = "/dev/input";
 /// udev applies device permissions shortly after the node appears.
 const HOTPLUG_DELAY: Duration = Duration::from_millis(500);
 
-pub fn watch_keybinds(app: AppHandle, keybind_tx: flume::Sender<KeyEvent>) {
+/// Sends `()` on `pressed_tx` each time the overlay keybind is pressed.
+pub fn watch_keybinds(app: AppHandle, pressed_tx: flume::Sender<()>) {
   let config_rx = app.subscribe_config();
   let spawned = std::thread::Builder::new()
     .name("orbolay-keys".into())
-    .spawn(move || run(&app, &config_rx, &keybind_tx));
+    .spawn(move || run(&app, &config_rx, &pressed_tx));
   if let Err(e) = spawned {
     warn!("Could not start the keybind thread: {e}");
   }
 }
 
 /// The overlay keybind, or `None` while keybinds are disabled or unset.
-fn overlay_keys(config: &Config) -> Option<Vec<Key>> {
+fn overlay_bind(config: &Config) -> Option<Keybind> {
   config
     .keybind_enabled
-    .then(|| strings_to_keys(&config.overlay_keybind))
-    .filter(|keys| !keys.is_empty())
+    .then(|| Keybind::new(strings_to_keys(&config.overlay_keybind)))
+    .flatten()
 }
 
-fn run(app: &AppHandle, config_rx: &flume::Receiver<Config>, keybind_tx: &flume::Sender<KeyEvent>) {
-  let mut keys = app.read(|state| overlay_keys(&state.config));
+fn run(app: &AppHandle, config_rx: &flume::Receiver<Config>, pressed_tx: &flume::Sender<()>) {
+  let mut bind = app.read(|state| overlay_bind(&state.config));
   loop {
-    let Some(active) = keys.take() else {
+    let Some(active) = bind.take() else {
       info!("Global keybinds are disabled; not reading input devices");
       // Block until the config enables keybinds; nothing else runs meanwhile.
-      keys = loop {
+      bind = loop {
         let Ok(config) = config_rx.recv() else { return };
-        if let Some(enabled) = overlay_keys(&config) {
+        if let Some(enabled) = overlay_bind(&config) {
           break Some(enabled);
         }
       };
       continue;
     };
 
-    match listen_until_changed(&active, app, config_rx, keybind_tx) {
-      Ok(next) => keys = next,
+    match listen_until_changed(&active, config_rx, pressed_tx) {
+      Ok(next) => bind = next,
       Err(flume::RecvError::Disconnected) => return,
     }
   }
 }
 
-/// Reads devices for `keys` until the overlay keybind changes, then drops the runtime, which
+/// Reads devices for `bind` until the overlay keybind changes, then drops the runtime, which
 /// closes every device. Returns the new keybind, or an error once the app stops sending config.
 fn listen_until_changed(
-  keys: &[Key],
-  app: &AppHandle,
+  bind: &Keybind,
   config_rx: &flume::Receiver<Config>,
-  keybind_tx: &flume::Sender<KeyEvent>,
-) -> Result<Option<Vec<Key>>, flume::RecvError> {
+  pressed_tx: &flume::Sender<()>,
+) -> Result<Option<Keybind>, flume::RecvError> {
   let runtime = match tokio::runtime::Builder::new_current_thread()
     .enable_io()
     .enable_time()
@@ -77,21 +77,20 @@ fn listen_until_changed(
     Ok(runtime) => runtime,
     Err(e) => {
       warn!("Could not start the keybind runtime: {e}");
-      return config_rx.recv().map(|config| overlay_keys(&config));
+      return config_rx.recv().map(|config| overlay_bind(&config));
     }
   };
 
   runtime.block_on(async {
-    let mut listening = std::pin::pin!(listen(keys.to_vec(), app.recording_keybind(), keybind_tx));
-    let mut finished = false;
+    let mut listening = std::pin::pin!(listen(bind, pressed_tx));
     loop {
       tokio::select! {
-        () = &mut listening, if !finished => finished = true,
+        never = &mut listening => match never {},
         config = config_rx.recv_async() => {
-          let new_keys = overlay_keys(&config?);
-          if new_keys.as_deref() != Some(keys) {
-            debug!("Overlay keybind changed to {new_keys:?}");
-            return Ok(new_keys);
+          let new_bind = overlay_bind(&config?);
+          if new_bind.as_ref() != Some(bind) {
+            debug!("Overlay keybind changed to {new_bind:?}");
+            return Ok(new_bind);
           }
         }
       }
@@ -99,14 +98,15 @@ fn listen_until_changed(
   })
 }
 
-/// Reads every device that can send one of `keys` until the future is dropped, which closes
-/// the devices.
-async fn listen(keys: Vec<Key>, recording: &AtomicBool, keybind_tx: &flume::Sender<KeyEvent>) {
+/// Reads every device that can send one of the bind's keys until the future is dropped, which
+/// closes the devices. It never finishes on its own: it holds a sender for its own key channel.
+async fn listen(bind: &Keybind, pressed_tx: &flume::Sender<()>) -> Infallible {
+  let keys = bind.keys();
   let (key_tx, key_rx) = flume::unbounded::<(Key, bool)>();
   let mut readers = JoinSet::new();
   let mut opened = 0;
   for (path, device) in evdev::enumerate() {
-    if relevant(&path, &device, &keys) && open(&mut readers, &path, device, &key_tx) {
+    if relevant(&path, &device, keys) && open(&mut readers, &path, device, &key_tx) {
       opened += 1;
     }
   }
@@ -121,22 +121,17 @@ async fn listen(keys: Vec<Key>, recording: &AtomicBool, keybind_tx: &flume::Send
   let (added_tx, added_rx) = flume::unbounded::<PathBuf>();
   let _watcher = watch_new_devices(added_tx);
 
-  let mut binds = vec![Keybind::new(keys.clone(), KeyEvent::ToggleOverlay)];
   let mut state = KeyState::default();
   loop {
     tokio::select! {
-      change = key_rx.recv_async() => {
-        let Ok((key, pressed)) = change else { return };
-        if recording.load(Ordering::Relaxed) {
-          continue;
-        }
-        for event in state.process(key, pressed, &mut binds, Instant::now()) {
-          info!("Keybind pressed: {event:?}");
-          let _ = keybind_tx.send(event);
+      Ok((key, pressed)) = key_rx.recv_async() => {
+        if state.process(bind, key, pressed, Instant::now()) {
+          info!("Overlay keybind pressed");
+          let _ = pressed_tx.send(());
         }
       }
       Ok(path) = added_rx.recv_async() => {
-        let (keys, key_tx) = (keys.clone(), key_tx.clone());
+        let (keys, key_tx) = (keys.to_vec(), key_tx.clone());
         readers.spawn(async move {
           tokio::time::sleep(HOTPLUG_DELAY).await;
           if let Ok(device) = Device::open(&path)

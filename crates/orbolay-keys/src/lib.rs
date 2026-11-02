@@ -5,11 +5,6 @@ use std::time::{Duration, Instant};
 use evdev::KeyCode;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum KeyEvent {
-  ToggleOverlay,
-}
-
 macro_rules! keys {
   ($($key:ident = $code:ident,)*) => {
     /// A keyboard key, serialized with the names earlier versions stored in the config.
@@ -168,32 +163,30 @@ pub fn strings_to_keys(strings: &[impl AsRef<str>]) -> Vec<Key> {
 /// was missed.
 const STALE_TIMEOUT: Duration = Duration::from_secs(5);
 
-pub struct Keybind {
-  pub keys: Vec<Key>,
-  pub event: KeyEvent,
-  active: bool,
-}
+/// A non-empty set of keys that fires when exactly those keys are held.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Keybind(Vec<Key>);
 
 impl Keybind {
-  pub const fn new(keys: Vec<Key>, event: KeyEvent) -> Self {
-    Self {
-      keys,
-      event,
-      active: false,
-    }
+  pub fn new(keys: Vec<Key>) -> Option<Self> {
+    (!keys.is_empty()).then_some(Self(keys))
+  }
+
+  pub fn keys(&self) -> &[Key] {
+    &self.0
   }
 
   fn matches(&self, pressed: &[Key]) -> bool {
-    !self.keys.is_empty()
-      && pressed.len() == self.keys.len()
-      && self.keys.iter().all(|k| pressed.contains(k))
+    pressed.len() == self.0.len() && self.0.iter().all(|k| pressed.contains(k))
   }
 }
 
-/// Keys currently held across all devices.
+/// Keys currently held across all devices, tracked against one bind.
 pub struct KeyState {
   pressed: Vec<Key>,
   last_update: Instant,
+  /// Whether the bind was fully held after the previous change, so holding it fires once.
+  active: bool,
 }
 
 impl Default for KeyState {
@@ -201,24 +194,17 @@ impl Default for KeyState {
     Self {
       pressed: Vec::new(),
       last_update: Instant::now(),
+      active: false,
     }
   }
 }
 
 impl KeyState {
-  /// Records a press or release and returns the binds that just became fully held.
-  pub fn process(
-    &mut self,
-    key: Key,
-    pressed: bool,
-    keybinds: &mut [Keybind],
-    now: Instant,
-  ) -> Vec<KeyEvent> {
+  /// Records a press or release and returns whether `bind` just became fully held.
+  pub fn process(&mut self, bind: &Keybind, key: Key, pressed: bool, now: Instant) -> bool {
     if now.duration_since(self.last_update) > STALE_TIMEOUT {
       self.pressed.clear();
-      for bind in &mut *keybinds {
-        bind.active = false;
-      }
+      self.active = false;
     }
     self.last_update = now;
 
@@ -230,15 +216,8 @@ impl KeyState {
       self.pressed.retain(|&k| k != key);
     }
 
-    let mut fired = Vec::new();
-    for bind in keybinds {
-      let matches = bind.matches(&self.pressed);
-      if matches && !bind.active {
-        fired.push(bind.event);
-      }
-      bind.active = matches;
-    }
-    fired
+    let was_active = std::mem::replace(&mut self.active, bind.matches(&self.pressed));
+    self.active && !was_active
   }
 }
 
@@ -248,15 +227,10 @@ mod tests {
 
   use evdev::KeyCode;
 
-  use super::{Key, KeyEvent, KeyState, Keybind, keys_to_strings, strings_to_keys};
+  use super::{Key, KeyState, Keybind, keys_to_strings, strings_to_keys};
 
-  const NONE: Vec<KeyEvent> = Vec::new();
-
-  fn toggle() -> Vec<Keybind> {
-    vec![Keybind::new(
-      vec![Key::ControlLeft, Key::BackQuote],
-      KeyEvent::ToggleOverlay,
-    )]
+  fn toggle() -> Keybind {
+    Keybind::new(vec![Key::ControlLeft, Key::BackQuote]).unwrap()
   }
 
   #[test]
@@ -281,52 +255,39 @@ mod tests {
 
   #[test]
   fn a_bind_fires_once_per_press() {
-    let mut binds = toggle();
+    let bind = toggle();
     let mut state = KeyState::default();
     let now = Instant::now();
-    assert_eq!(state.process(Key::ControlLeft, true, &mut binds, now), NONE);
-    assert_eq!(
-      state.process(Key::BackQuote, true, &mut binds, now),
-      [KeyEvent::ToggleOverlay]
-    );
-    assert_eq!(state.process(Key::BackQuote, true, &mut binds, now), NONE);
-    state.process(Key::BackQuote, false, &mut binds, now);
-    assert_eq!(
-      state.process(Key::BackQuote, true, &mut binds, now),
-      [KeyEvent::ToggleOverlay]
-    );
+    assert!(!state.process(&bind, Key::ControlLeft, true, now));
+    assert!(state.process(&bind, Key::BackQuote, true, now));
+    assert!(!state.process(&bind, Key::BackQuote, true, now));
+    state.process(&bind, Key::BackQuote, false, now);
+    assert!(state.process(&bind, Key::BackQuote, true, now));
   }
 
   #[test]
   fn extra_held_keys_prevent_a_match() {
-    let mut binds = toggle();
+    let bind = toggle();
     let mut state = KeyState::default();
     let now = Instant::now();
-    state.process(Key::ShiftLeft, true, &mut binds, now);
-    state.process(Key::ControlLeft, true, &mut binds, now);
-    assert_eq!(state.process(Key::BackQuote, true, &mut binds, now), NONE);
+    state.process(&bind, Key::ShiftLeft, true, now);
+    state.process(&bind, Key::ControlLeft, true, now);
+    assert!(!state.process(&bind, Key::BackQuote, true, now));
   }
 
   #[test]
   fn stale_keys_are_forgotten() {
-    let mut binds = toggle();
+    let bind = toggle();
     let mut state = KeyState::default();
     let now = Instant::now();
-    state.process(Key::ShiftLeft, true, &mut binds, now);
+    state.process(&bind, Key::ShiftLeft, true, now);
     let later = now + Duration::from_secs(6);
-    state.process(Key::ControlLeft, true, &mut binds, later);
-    assert_eq!(
-      state.process(Key::BackQuote, true, &mut binds, later),
-      [KeyEvent::ToggleOverlay]
-    );
+    state.process(&bind, Key::ControlLeft, true, later);
+    assert!(state.process(&bind, Key::BackQuote, true, later));
   }
 
   #[test]
-  fn an_empty_bind_never_fires() {
-    let mut binds = vec![Keybind::new(Vec::new(), KeyEvent::ToggleOverlay)];
-    let mut state = KeyState::default();
-    let now = Instant::now();
-    state.process(Key::KeyA, true, &mut binds, now);
-    assert_eq!(state.process(Key::KeyA, false, &mut binds, now), NONE);
+  fn an_empty_bind_cannot_be_built() {
+    assert_eq!(Keybind::new(Vec::new()), None);
   }
 }

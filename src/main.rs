@@ -8,7 +8,6 @@ use orbolay_core::{
   config::{Config, Corner, LoadError, ensure_config_dirs, load_config, save_config},
   protocol::BridgeCommand,
 };
-use orbolay_keys::KeyEvent;
 use orbolay_ui::{
   components::{MessagesSection, SettingsButton, Soundboard, VoiceControls, VoiceSection},
   open_configurator, open_configurator_standalone, populate_monitor_cache,
@@ -232,7 +231,7 @@ fn app(startup: Startup) -> impl IntoElement {
   let app = use_hook(move || {
     let (redraw_tx, redraw_rx) = flume::bounded(1);
     let (open_config_tx, open_config_rx) = flume::unbounded();
-    let (toggle_tx, toggle_rx) = flume::unbounded::<KeyEvent>();
+    let (toggle_tx, toggle_rx) = flume::unbounded::<()>();
     let (app, commands) = AppHandle::new(
       AppState::new(startup.config.clone()),
       redraw_tx,
@@ -248,10 +247,15 @@ fn app(startup: Startup) -> impl IntoElement {
       }
     });
 
+    // Toggles from the keybind and the control socket; ignored while the settings window
+    // records a new keybind, whose key presses would otherwise toggle the overlay
+    let recording = app.recording_keybind().clone();
     spawn_in_window(async move {
-      while matches!(toggle_rx.recv_async().await, Ok(KeyEvent::ToggleOverlay)) {
-        let open = !is_open();
-        is_open.set(open);
+      while toggle_rx.recv_async().await.is_ok() {
+        if !recording.load(Ordering::Relaxed) {
+          let open = !is_open();
+          is_open.set(open);
+        }
       }
     });
 
@@ -424,16 +428,14 @@ fn start_background(
   app: &AppHandle,
   startup: &Startup,
   commands: flume::Receiver<BridgeCommand>,
-  toggle_tx: flume::Sender<KeyEvent>,
+  toggle_tx: flume::Sender<()>,
 ) {
   keys::watch_keybinds(app.clone(), toggle_tx.clone());
 
   let ctrl_app = app.clone();
   control::start(move |cmd| match cmd {
     Command::ToggleOverlay => {
-      if !ctrl_app.recording_keybind().load(Ordering::Relaxed) {
-        let _ = toggle_tx.send(KeyEvent::ToggleOverlay);
-      }
+      let _ = toggle_tx.send(());
     }
     Command::Mute => ctrl_app.send(BridgeCommand::ToggleMute),
     Command::Deafen => ctrl_app.send(BridgeCommand::ToggleDeaf),
