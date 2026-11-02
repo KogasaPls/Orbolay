@@ -2,7 +2,7 @@ pub mod components;
 pub mod configurator;
 mod key_support;
 pub mod layout;
-pub mod monitors;
+mod monitors;
 pub mod util;
 pub mod view;
 

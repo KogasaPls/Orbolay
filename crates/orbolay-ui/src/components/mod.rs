@@ -1,5 +1,6 @@
 mod message_row;
 mod messages_section;
+mod overlay;
 mod settings_button;
 mod soundboard;
 mod template_view;
@@ -10,6 +11,7 @@ mod voice_section;
 
 pub use message_row::MessageRow;
 pub use messages_section::MessagesSection;
+pub use overlay::Overlay;
 pub use settings_button::SettingsButton;
 pub use soundboard::Soundboard;
 pub use template_view::TemplateView;

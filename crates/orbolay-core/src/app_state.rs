@@ -40,7 +40,7 @@ pub struct Call {
   pub members: Vec<User>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct AppState {
   pub config: Config,
   /// The Discord user running the bridge, known once it registers.
