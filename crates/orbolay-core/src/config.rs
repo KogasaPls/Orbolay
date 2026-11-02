@@ -70,16 +70,13 @@ impl Corner {
     }
   }
 
-  /// The first screen corner not used by any of `occupied`.
-  pub fn unused(occupied: &[Self]) -> Option<Self> {
-    [
-      Self::BottomRight,
-      Self::BottomLeft,
-      Self::TopRight,
-      Self::TopLeft,
-    ]
-    .into_iter()
-    .find(|corner| !occupied.contains(corner))
+  /// A screen corner other than `a` and `b`, preferring the bottom right.
+  pub fn unused(a: Self, b: Self) -> Self {
+    // Two corners cannot cover the first three candidates, so the third is always free.
+    [Self::BottomRight, Self::BottomLeft]
+      .into_iter()
+      .find(|corner| *corner != a && *corner != b)
+      .unwrap_or(Self::TopRight)
   }
 }
 
@@ -526,14 +523,22 @@ mod tests {
   }
 
   #[test]
+  fn unused_corner_avoids_both_occupied_ones() {
+    assert_eq!(
+      Corner::unused(Corner::BottomRight, Corner::BottomLeft),
+      Corner::TopRight
+    );
+  }
+
+  #[test]
   fn unused_corner_skips_occupied_ones() {
     assert_eq!(
-      Corner::unused(&[Corner::BottomRight, Corner::TopLeft]),
-      Some(Corner::BottomLeft)
+      Corner::unused(Corner::BottomRight, Corner::TopLeft),
+      Corner::BottomLeft
     );
     assert_eq!(
-      Corner::unused(&[Corner::TopCenter]),
-      Some(Corner::BottomRight)
+      Corner::unused(Corner::TopCenter, Corner::TopLeft),
+      Corner::BottomRight
     );
   }
 }

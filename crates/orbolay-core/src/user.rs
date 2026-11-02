@@ -54,6 +54,13 @@ impl User {
 
 use crate::protocol::MemberState;
 
+/// Discord local volume range is 0 to this, with 100 as the default.
+pub const MAX_VOLUME: f32 = 200.;
+
+fn local_volume(volume: f32) -> f32 {
+  volume.clamp(0., MAX_VOLUME)
+}
+
 impl User {
   /// A member who just appeared, not yet speaking.
   pub fn joined(state: MemberState) -> Self {
@@ -66,7 +73,7 @@ impl User {
       speech: Speech::Silent,
       streaming: state.streaming,
       camera: state.camera,
-      volume: state.volume.unwrap_or(100.),
+      volume: state.volume.map_or(100., local_volume),
     }
   }
 
@@ -80,7 +87,7 @@ impl User {
       self.avatar = state.avatar_url;
     }
     if let Some(volume) = state.volume {
-      self.volume = volume;
+      self.volume = local_volume(volume);
     }
     self.muted = state.mute;
     self.deafened = state.deaf;

@@ -298,8 +298,7 @@ fn app(startup: Startup) -> impl IntoElement {
   );
   let current_user = state.me().cloned();
 
-  let settings_alignment = Corner::unused(&[config.user_alignment, config.message_alignment])
-    .unwrap_or(Corner::BottomLeft);
+  let settings_alignment = Corner::unused(config.user_alignment, config.message_alignment);
   let settings_app = app.clone();
   let open_settings: EventHandler<()> = (move |()| {
     view.set(OverlayView::Closed);

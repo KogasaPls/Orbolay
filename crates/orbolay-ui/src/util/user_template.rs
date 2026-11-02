@@ -64,10 +64,7 @@ pub fn render_user(
     &[
       (AVATAR_TOKEN, &escape_html(&avatar_url(user))),
       (NAME_TOKEN, &escape_html(&user.name)),
-      (
-        VOLUME_PERCENT_TOKEN,
-        &format!("{:.0}", user.volume.clamp(0., 200.)),
-      ),
+      (VOLUME_PERCENT_TOKEN, &format!("{:.0}", user.volume)),
       (
         MUTED_ICON_TOKEN,
         &status_icon(state == UserVoiceState::Muted, "muted", MUTED_ICON),

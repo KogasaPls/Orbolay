@@ -1,5 +1,9 @@
 use freya::prelude::*;
-use orbolay_core::{app_state::AppHandle, protocol::BridgeCommand, user::User};
+use orbolay_core::{
+  app_state::AppHandle,
+  protocol::BridgeCommand,
+  user::{MAX_VOLUME, User},
+};
 
 use crate::util::{
   scale::{GapsScaleExt, UiScale},
@@ -19,7 +23,9 @@ impl Component for UserContextMenuItem {
     let scale = self.ui_scale;
     let app = self.app.clone();
     let user_id = self.user.id.clone();
-    let mut slider_value = use_state(|| f64::from(self.user.volume.clamp(0., 200.) / 2.));
+    // The slider runs 0-100 over Discord's 0-MAX_VOLUME range
+    let to_slider = |volume: f32| f64::from(volume / MAX_VOLUME * 100.);
+    let mut slider_value = use_state(|| to_slider(self.user.volume));
 
     let menu_item_theme = MenuItemThemePartial {
       background: Some(Preference::Specific(self.theme.darkish_gray)),
@@ -66,12 +72,15 @@ impl Component for UserContextMenuItem {
                 label()
                   .font_size(scale.px(12.))
                   .color(self.theme.text_color)
-                  .text(format!("{:.0}%", slider_value.read().round() * 2.0)),
+                  .text(format!(
+                    "{:.0}%",
+                    *slider_value.read() / 100. * f64::from(MAX_VOLUME)
+                  )),
               ),
           )
           .child(
             Slider::new(move |value: f64| {
-              let volume = (value * 2.0).clamp(0.0, 200.0);
+              let volume = value / 100. * f64::from(MAX_VOLUME);
               slider_value.set(value);
               app.send(BridgeCommand::SetUserVolume {
                 user_id: user_id.clone(),
