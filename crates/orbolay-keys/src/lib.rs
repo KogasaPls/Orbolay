@@ -19,6 +19,8 @@ macro_rules! keys {
     }
 
     impl Key {
+      pub const ALL: &[Self] = &[$(Self::$key,)*];
+
       pub const fn code(self) -> KeyCode {
         match self {
           $(Self::$key => KeyCode::$code,)*
