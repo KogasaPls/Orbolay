@@ -336,6 +336,7 @@ impl AppHandle {
       let mut state = self.shared.write().unwrap();
       let before = state.config.clone();
       change(&mut state.config);
+      state.config = std::mem::take(&mut state.config).normalized();
       (state.config.clone(), state.config != before)
     };
     if changed {

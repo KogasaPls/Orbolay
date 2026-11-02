@@ -9,6 +9,7 @@ use crate::dirs::ensure_config_dirs;
 
 pub const DEFAULT_PORT: u16 = 6888;
 pub const MAX_SPEAKING_GRACE_MS: u32 = 5000;
+pub const UI_SCALE_RANGE: std::ops::RangeInclusive<f32> = 0.5..=2.0;
 
 /// A screen anchor for the voice list, notifications, or the settings button.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -267,10 +268,7 @@ impl From<RawConfig> for Config {
         .display_voice_members
         .0
         .unwrap_or(d.display_voice_members),
-      speaking_grace_ms: raw
-        .speaking_grace_ms
-        .unwrap_or(d.speaking_grace_ms)
-        .min(MAX_SPEAKING_GRACE_MS),
+      speaking_grace_ms: raw.speaking_grace_ms.unwrap_or(d.speaking_grace_ms),
       speaking_grace_style: raw.speaking_grace_style.0.unwrap_or_default(),
       messages_semitransparent: raw.messages_semitransparent.unwrap_or_default(),
       software_rendering: raw.software_rendering.unwrap_or_default(),
@@ -282,10 +280,31 @@ impl From<RawConfig> for Config {
       user_template: raw.user_template,
       notification_template: raw.notification_template,
     }
+    .normalized()
   }
 }
 
 impl Config {
+  /// Brings out-of-range values back into the ranges the overlay supports.
+  #[must_use]
+  pub fn normalized(mut self) -> Self {
+    let d = Self::default();
+    self.speaking_grace_ms = self.speaking_grace_ms.min(MAX_SPEAKING_GRACE_MS);
+    self.ui_scale = if self.ui_scale.is_finite() {
+      self
+        .ui_scale
+        .clamp(*UI_SCALE_RANGE.start(), *UI_SCALE_RANGE.end())
+    } else {
+      d.ui_scale
+    };
+    self.border_radius = if self.border_radius.is_finite() {
+      self.border_radius.max(0.)
+    } else {
+      d.border_radius
+    };
+    self
+  }
+
   /// Prefer the native display name; use the legacy index only when no name is saved.
   pub fn display_index(&self, mut names: impl Iterator<Item = Option<String>>) -> Option<usize> {
     match self.display_name.as_deref() {
@@ -448,11 +467,11 @@ mod tests {
   }
 
   #[test]
-  fn grace_period_is_capped() {
-    assert_eq!(
-      parse(json!({"speakingGraceMs": 60000})).speaking_grace_ms,
-      5000
-    );
+  fn out_of_range_values_are_brought_into_range() {
+    let config = parse(json!({"speakingGraceMs": 60000, "uiScale": 9.0, "borderRadius": -4.0}));
+    assert_eq!(config.speaking_grace_ms, 5000);
+    assert!((config.ui_scale - 2.0).abs() < f32::EPSILON);
+    assert!(config.border_radius.abs() < f32::EPSILON);
   }
 
   #[test]

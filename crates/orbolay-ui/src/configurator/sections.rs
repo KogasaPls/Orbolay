@@ -5,10 +5,7 @@ use freya::prelude::*;
 use log::warn;
 use orbolay_core::{
   app_state::AppHandle,
-  config::{
-    Config, Corner, DisplayVoiceMembers, MAX_SPEAKING_GRACE_MS, SpeakingGraceStyle, config_dir,
-    save_config,
-  },
+  config::{Config, Corner, DisplayVoiceMembers, SpeakingGraceStyle, config_dir, save_config},
   dirs::{TEMPLATES_DIR, ensure_config_dirs},
   monitors::monitors_list,
   payloads::Notification,
@@ -416,7 +413,7 @@ impl Settings {
               "How long users keep showing after they stop talking, up to 5000. Values below 300 may flicker",
             ),
             config.speaking_grace_ms,
-            |cfg, n: u32| cfg.speaking_grace_ms = n.min(MAX_SPEAKING_GRACE_MS),
+            |cfg, n: u32| cfg.speaking_grace_ms = n,
           ),
           row(
             "Grace Period Style",
@@ -533,7 +530,7 @@ impl Settings {
             "Border Radius (px)",
             Some("Corner radius used by panels and buttons"),
             config.border_radius,
-            |cfg, n: f32| cfg.border_radius = n.max(0.),
+            |cfg, n: f32| cfg.border_radius = n,
           ),
         ],
       ),
