@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use rdev::{Event, grab, listen};
 
+use log::{info, warn};
 use orbolay_core::app_state::SharedAppState;
-use orbolay_logging::{log, warn};
 
 use orbolay_keys::{
   DEFAULT_OVERLAY_TOGGLE, KeyEvent, KeyState, Keybind, default_keybinds, strings_to_keys,
@@ -27,7 +27,7 @@ pub fn watch_keybinds(shared: SharedAppState, keybind_tx: flume::Sender<KeyEvent
     .is_keybind_enabled
     .unwrap_or(true)
   {
-    log!("Global keybinds are disabled; not watching input devices until enabled");
+    info!("Global keybinds are disabled; not watching input devices until enabled");
   }
 
   // Poll config every second to sync keybind/enabled state, and start the
@@ -106,7 +106,7 @@ fn start_listener(
     });
 
     if let Err(e) = grab_result {
-      warn!("Failed to grab global hotkeys: {:?}", e);
+      warn!("Failed to grab global hotkeys: {e:?}");
 
       let key_state_listen = RefCell::new(KeyState::new());
       if let Err(e) = listen(move |event: Event| {
@@ -119,7 +119,7 @@ fn start_listener(
           }
         }
       }) {
-        warn!("Failed to listen for global hotkeys: {:?}", e);
+        warn!("Failed to listen for global hotkeys: {e:?}");
       }
     }
   });

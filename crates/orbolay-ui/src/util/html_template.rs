@@ -6,8 +6,8 @@ use std::{
   time::SystemTime,
 };
 
+use log::warn;
 use orbolay_core::{config::config_dir, dirs::TEMPLATES_DIR};
-use orbolay_logging::warn;
 use scraper::{Html, Selector};
 
 use crate::util::theme::{Theme, to_hex};
@@ -130,11 +130,17 @@ impl TemplateStore {
     match fs::read_to_string(path).map(|raw| preprocess(&self.spec, &raw)) {
       Ok(Ok(template)) => template,
       Ok(Err(reason)) => {
-        warn!("Invalid {kind} template {path:?}: {reason}; using the built-in default");
+        warn!(
+          "Invalid {kind} template {}: {reason}; using the built-in default",
+          path.display()
+        );
         self.builtin()
       }
       Err(err) => {
-        warn!("Failed to read {kind} template {path:?}: {err}; using the built-in default");
+        warn!(
+          "Failed to read {kind} template {}: {err}; using the built-in default",
+          path.display()
+        );
         self.builtin()
       }
     }

@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use rdev::{EventType, Key};
 
 use crate::KeyEvent;
-use orbolay_logging::log;
+use log::info;
 
 const STALE_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -104,7 +104,7 @@ pub fn process(
 
     if matches && !was_active {
       bind.set_active(true);
-      log!("Key event: {:?}", bind.event);
+      info!("Key event: {:?}", bind.event);
       fired.push(bind.event.clone());
     } else if !matches && was_active {
       bind.set_active(false);

@@ -1,5 +1,5 @@
+use log::error;
 use orbolay_core::{app_state::AppHandle, util::bridge::BridgeMessage};
-use orbolay_logging::error;
 
 use crate::websocket;
 
@@ -10,7 +10,7 @@ pub fn create_transport_thread(
 ) {
   std::thread::spawn(move || {
     if let Err(e) = websocket::create_websocket(port, &app, &transport_recv) {
-      error!("Websocket server failed on port {}: {}", port, e);
+      error!("Websocket server failed on port {port}: {e}");
     }
   });
 }

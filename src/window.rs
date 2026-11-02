@@ -24,7 +24,7 @@ pub fn set_clickable(clickable: bool) {
         },
       };
 
-      use orbolay_logging::warn;
+      use log::warn;
 
       let Ok(handle) = w.window_handle() else {
         warn!("Failed to get window handle");

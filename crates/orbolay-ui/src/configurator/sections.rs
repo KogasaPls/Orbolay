@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use freya::prelude::*;
 
+use log::warn;
 use orbolay_core::{
   app_state::AppHandle,
   config::{Config, DisplayVoiceMembers, config_dir, save_config},
@@ -9,7 +10,6 @@ use orbolay_core::{
   monitors::monitors_list,
   payloads::Notification,
 };
-use orbolay_logging::warn;
 
 use crate::util::theme::{DARKISH_GRAY, LIGHT_GRAY, SUPERLIGHT_GRAY, from_tuple, to_tuple};
 use crate::util::{

@@ -5,6 +5,7 @@ use std::{collections::HashMap, sync::atomic::Ordering};
 
 use freya::prelude::*;
 use gumdrop::Options;
+use log::{info, warn};
 use native_dialog::{MessageDialogBuilder, MessageLevel};
 use orbolay_control::Command;
 use orbolay_core::{
@@ -14,7 +15,6 @@ use orbolay_core::{
   util::bridge::BridgeMessage,
 };
 use orbolay_keys::KeyEvent;
-use orbolay_logging::{log, warn};
 use orbolay_transport::{create_transport_thread, start_config_watcher};
 use orbolay_ui::{
   components::{MessagesSection, SettingsButton, Soundboard, VoiceControls, VoiceSection},
@@ -105,6 +105,7 @@ fn main() {
     std::process::exit(0);
   }
 
+  init_logging();
   ensure_config_dirs();
 
   let config = load_config().unwrap_or_default();
@@ -170,7 +171,7 @@ fn main() {
   if !args.target.is_empty() {
     let env = HashMap::from([("WAYLAND_DISPLAY".to_string(), wayland_display.ok())]);
 
-    log!("Launching child process: {:?}", args.target);
+    info!("Launching child process: {:?}", args.target);
 
     target::launch_target(args.target, Some(env));
   }
@@ -210,6 +211,18 @@ fn main() {
           }),
       ),
   );
+}
+
+/// Logs Orbolay's own crates at `info` and dependencies at `warn` unless `RUST_LOG` overrides it.
+fn init_logging() {
+  const DEFAULT_FILTER: &str = "warn,orbolay=info,orbolay_control=info,orbolay_core=info,orbolay_keys=info,orbolay_transport=info,orbolay_ui=info";
+
+  let mut builder =
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(DEFAULT_FILTER));
+  if std::env::var_os("JOURNAL_STREAM").is_some() {
+    builder.format_timestamp(None);
+  }
+  builder.init();
 }
 
 fn app() -> impl IntoElement {

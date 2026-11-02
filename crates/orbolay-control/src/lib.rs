@@ -2,7 +2,7 @@ use std::io::{BufRead, BufReader, Write};
 
 use interprocess::local_socket::{GenericFilePath, ToFsName};
 use interprocess::local_socket::{ListenerOptions, prelude::*};
-use orbolay_logging::{debug, error, log, warn};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,7 +26,7 @@ pub fn start(handler: impl Fn(Command) + Send + Sync + 'static) {
       return;
     };
 
-    log!("Control socket listening");
+    info!("Control socket listening");
 
     loop {
       match listener.accept() {
@@ -34,11 +34,11 @@ pub fn start(handler: impl Fn(Command) + Send + Sync + 'static) {
           let handler = handler.clone();
           std::thread::spawn(move || {
             serve(stream, handler.as_ref());
-            log!("Control socket client disconnected");
+            info!("Control socket client disconnected");
           });
         }
         Err(e) => {
-          error!("Control listener error: {}", e);
+          error!("Control listener error: {e}");
           break;
         }
       }
@@ -71,10 +71,10 @@ fn serve(stream: LocalSocketStream, handler: &impl Fn(Command)) {
 
     match serde_json::from_str::<Command>(&cmd_line) {
       Ok(cmd) => {
-        debug!("Received control command: {:?}", cmd);
+        debug!("Received control command: {cmd:?}");
         handler(cmd);
       }
-      Err(e) => warn!("Invalid control command: {}", e),
+      Err(e) => warn!("Invalid control command: {e}"),
     }
   }
 }

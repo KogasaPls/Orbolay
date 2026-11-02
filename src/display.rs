@@ -1,8 +1,8 @@
 use freya::prelude::{Platform, WinitPlatformExt};
 use winit::{dpi::PhysicalSize, monitor::MonitorHandle};
 
+use log::warn;
 use orbolay_core::config::load_config;
-use orbolay_logging::warn;
 use orbolay_ui::populate_monitor_cache;
 
 use crate::window::WINDOW_ID;

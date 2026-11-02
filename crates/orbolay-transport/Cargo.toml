@@ -9,7 +9,7 @@ chrono = { workspace = true }
 flume = { workspace = true }
 notify = { workspace = true }
 orbolay-core = { path = "../orbolay-core" }
-orbolay-logging = { path = "../orbolay-logging" }
+log = { workspace = true }
 serde_json = { workspace = true }
 tungstenite = { workspace = true }
 

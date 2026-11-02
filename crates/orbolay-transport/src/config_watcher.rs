@@ -1,7 +1,7 @@
 use std::sync::mpsc;
 
+use log::{error, info, warn};
 use notify::{Event, Result, Watcher};
-use orbolay_logging::{error, log, warn};
 
 use orbolay_core::{
   app_state::AppHandle,
@@ -12,7 +12,7 @@ pub fn start_config_watcher(
   app: AppHandle,
   on_config_change: impl Fn(&Config, &Config) + Send + 'static,
 ) {
-  log!("Starting config file notification thread");
+  info!("Starting config file notification thread");
   // The UI updates app state before saving, so compare against the last loaded config.
   let mut previous_config = app.read(|state| state.config.clone());
   std::thread::spawn(move || {
@@ -22,8 +22,7 @@ pub fn start_config_watcher(
       Ok(w) => w,
       Err(e) => {
         warn!(
-          "Failed to create config watcher: {}. Config changes will not reflect until Orbolay is restarted.",
-          e
+          "Failed to create config watcher: {e}. Config changes will not reflect until Orbolay is restarted."
         );
         return;
       }
@@ -40,8 +39,8 @@ pub fn start_config_watcher(
 
     if let Err(e) = watcher.watch(&config_path, notify::RecursiveMode::NonRecursive) {
       warn!(
-        "Failed to watch config file at {:?}: {}. Config changes will not reflect until Orbolay is restarted.",
-        config_path, e
+        "Failed to watch config file at {}: {e}. Config changes will not reflect until Orbolay is restarted.",
+        config_path.display()
       );
       return;
     }
@@ -54,18 +53,18 @@ pub fn start_config_watcher(
           }
 
           if event.paths.iter().any(|p| p == &config_path) {
-            log!("Config file changed, reloading...");
+            info!("Config file changed, reloading...");
             if let Some(new_config) = load_config() {
               apply_config_change(&app, &mut previous_config, new_config, &on_config_change);
 
-              log!("Config reloaded successfully");
+              info!("Config reloaded successfully");
             } else {
               warn!("Failed to reload config file");
             }
           }
         }
-        Ok(Err(e)) => error!("Watcher error: {}", e),
-        Err(e) => error!("Watcher channel error: {}", e),
+        Ok(Err(e)) => error!("Watcher error: {e}"),
+        Err(e) => error!("Watcher channel error: {e}"),
       }
     }
   });

@@ -1,4 +1,4 @@
-use orbolay_logging::{debug, error, log, success, warn};
+use log::{debug, error, info, warn};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::net::{TcpListener, TcpStream};
@@ -17,26 +17,26 @@ pub fn create_websocket(
   transport_recv: &flume::Receiver<BridgeMessage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let server = TcpListener::bind(format!("127.0.0.1:{port}"))?;
-  success!("Websocket server started on port {}", port);
+  info!("Websocket server started on port {port}");
 
   for stream in server.incoming() {
     match stream {
       Ok(stream) => {
-        log!("Accepted connection");
+        info!("Accepted connection");
 
         let recv = transport_recv.clone();
         let app_clone = app.clone();
         std::thread::spawn(move || match ws_stream(stream, &app_clone, &recv) {
           Ok(()) => {
-            success!("Websocket stream closed");
+            info!("Websocket stream closed");
           }
           Err(e) => {
-            error!("Error in websocket stream: {}", e);
+            error!("Error in websocket stream: {e}");
           }
         });
       }
       Err(e) => {
-        warn!("Failed to accept connection: {}", e);
+        warn!("Failed to accept connection: {e}");
       }
     }
   }
@@ -55,13 +55,13 @@ fn ws_stream(
 
   websocket.get_mut().set_nonblocking(true)?;
 
-  log!("Stream connected");
+  info!("Stream connected");
 
   'outer: loop {
     loop {
       match websocket.read() {
         Ok(msg) if msg.is_close() => {
-          log!("Stream closed");
+          info!("Stream closed");
           app.update(|state| state.voice_users = vec![]);
           break 'outer;
         }
@@ -70,13 +70,13 @@ fn ws_stream(
           let msg = msg.to_string();
           let msg: BridgeMessage = serde_json::from_str(&msg)?;
           if let Err(e) = handle_ws_message(&msg, app) {
-            error!("Failed to handle websocket message: {}", e);
+            error!("Failed to handle websocket message: {e}");
           }
         }
         Err(tungstenite::Error::Io(ref e)) if e.kind() == std::io::ErrorKind::WouldBlock => break,
         Err(e) => {
           // socket is dead, exit so this thread stops draining messages.
-          error!("Websocket read error: {}", e);
+          error!("Websocket read error: {e}");
           app.update(|state| state.voice_users = vec![]);
           break 'outer;
         }
@@ -85,7 +85,7 @@ fn ws_stream(
 
     if let Ok(msg) = transport_recv.try_recv() {
       let msg = serde_json::to_string(&msg)?;
-      debug!("Sending message to websocket: {:?}", msg);
+      debug!("Sending message to websocket: {msg:?}");
       websocket
         .write(Message::Text(Utf8Bytes::from(msg)))
         .unwrap_or_else(|_| error!("Failed to send message to websocket, socket closed?"));

@@ -6,7 +6,7 @@ rust-version = "1.95"
 
 [dependencies]
 serde_json = { workspace = true }
-orbolay-logging = { path = "../orbolay-logging" }
+log = { workspace = true }
 rdev = { workspace = true }
 
 [lints]

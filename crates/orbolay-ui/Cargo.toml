@@ -9,7 +9,7 @@ flume = { workspace = true }
 freya = { workspace = true }
 orbolay-core = { path = "../orbolay-core" }
 orbolay-keys = { path = "../orbolay-keys" }
-orbolay-logging = { path = "../orbolay-logging" }
+log = { workspace = true }
 open = { workspace = true }
 scraper = { workspace = true }
 serde = { workspace = true }
