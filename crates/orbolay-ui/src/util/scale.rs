@@ -4,12 +4,9 @@ use freya::prelude::Gaps;
 pub struct UiScale(f32);
 
 impl UiScale {
-  pub fn new(scale: f32) -> Self {
-    if scale.is_finite() && scale > 0.0 {
-      Self(scale)
-    } else {
-      Self(1.0)
-    }
+  /// `scale` comes from a normalized config, so it is finite and positive.
+  pub const fn new(scale: f32) -> Self {
+    Self(scale)
   }
 
   pub fn factor(self) -> f32 {
@@ -29,21 +26,14 @@ impl UiScale {
   }
 }
 
-pub fn scale_f32(value: f32, scale: f32) -> f32 {
-  UiScale::new(scale).px(value)
-}
-
-pub fn scale_i32(value: i32, scale: f32) -> i32 {
-  UiScale::new(scale).int(value)
-}
-
 pub trait GapsScaleExt {
   #[must_use]
-  fn scaled(self, scale: f32) -> Self;
+  fn scaled(self, scale: UiScale) -> Self;
 }
 
 impl GapsScaleExt for Gaps {
-  fn scaled(self, scale: f32) -> Self {
+  fn scaled(self, scale: UiScale) -> Self {
+    let scale = scale.factor();
     Self::new(
       self.top() * scale,
       self.right() * scale,

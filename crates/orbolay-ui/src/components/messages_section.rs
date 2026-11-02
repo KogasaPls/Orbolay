@@ -20,12 +20,12 @@ pub struct MessagesSection {
   pub notification_template: Option<String>,
   pub app: AppHandle,
   pub theme: Theme,
-  pub ui_scale: f32,
+  pub ui_scale: UiScale,
 }
 
 impl Component for MessagesSection {
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     let (x, y) = self.message_alignment.axes();
     let gaps = corner_gaps(
       self.message_alignment,
@@ -59,7 +59,7 @@ impl Component for MessagesSection {
             theme: self.theme,
             box_size: (400, 66),
             notification_template: self.notification_template.clone(),
-            ui_scale: scale.factor(),
+            ui_scale: scale,
           })
         }
       },

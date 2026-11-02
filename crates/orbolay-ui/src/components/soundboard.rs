@@ -39,12 +39,12 @@ struct SoundButton {
   available: bool,
   app: AppHandle,
   theme: Theme,
-  ui_scale: f32,
+  ui_scale: UiScale,
 }
 
 impl Component for SoundButton {
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     let app = self.app.clone();
     let mut hovered = use_state(|| false);
 
@@ -60,7 +60,7 @@ impl Component for SoundButton {
       .main_align(Alignment::Center)
       .width(Size::percent(33.3_f32))
       .height(Size::px(scale.px(40.0)))
-      .margin(Gaps::new_all(2.).scaled(scale.factor()))
+      .margin(Gaps::new_all(2.).scaled(scale))
       .corner_radius(CornerRadius::new_all(self.theme.border_radius))
       .maybe(!available, |el| el.opacity(0.4_f32))
       .background(if *hovered.read() {
@@ -90,10 +90,10 @@ impl Component for SoundButton {
           .main_align(Alignment::Center)
           .cross_align(Alignment::Center)
           .content(Content::wrap())
-          .padding(Gaps::new_symmetric(4., 2.).scaled(scale.factor()))
+          .padding(Gaps::new_symmetric(4., 2.).scaled(scale))
           .child(
             rect()
-              .padding(Gaps::new(0., 4., 0., 0.).scaled(scale.factor()))
+              .padding(Gaps::new(0., 4., 0., 0.).scaled(scale))
               .child(
                 label()
                   .color(self.theme.text_color)
@@ -118,12 +118,12 @@ impl Component for SoundButton {
 struct GuildLabel {
   name: String,
   theme: Theme,
-  ui_scale: f32,
+  ui_scale: UiScale,
 }
 
 impl Component for GuildLabel {
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     label()
       .font_size(scale.px(11.))
       .width(Size::fill())
@@ -139,12 +139,12 @@ pub struct Soundboard {
   pub current_guild_id: String,
   pub has_nitro: bool,
   pub theme: Theme,
-  pub ui_scale: f32,
+  pub ui_scale: UiScale,
 }
 
 impl Component for Soundboard {
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     let current_guild_id = &self.current_guild_id;
 
     let mut guilds: Vec<_> = self.soundboard.sounds.iter().collect();
@@ -159,11 +159,11 @@ impl Component for Soundboard {
       .background(self.theme.gray)
       .corner_radius(CornerRadius::new_all(self.theme.border_radius))
       .max_width(Size::px(scale.px(400.0)))
-      .margin(Gaps::new(0., 0., 8., 0.).scaled(scale.factor()));
+      .margin(Gaps::new(0., 0., 8., 0.).scaled(scale));
 
     if guilds.is_empty() {
       return panel
-        .padding(Gaps::new_all(16.).scaled(scale.factor()))
+        .padding(Gaps::new_all(16.).scaled(scale))
         .main_align(Alignment::Center)
         .cross_align(Alignment::Center)
         .child(
@@ -178,7 +178,7 @@ impl Component for Soundboard {
       rect()
         .direction(Direction::Vertical)
         .width(Size::fill())
-        .padding(Gaps::new_all(16.).scaled(scale.factor())),
+        .padding(Gaps::new_all(16.).scaled(scale)),
       |col, (guild_id, sounds)| {
         let name = if guild_id.is_empty() {
           "Default".to_string()
@@ -195,14 +195,14 @@ impl Component for Soundboard {
             .direction(Direction::Horizontal)
             .content(Content::wrap())
             .width(Size::fill())
-            .padding(Gaps::new(2., 0., 6., 0.).scaled(scale.factor())),
+            .padding(Gaps::new(2., 0., 6., 0.).scaled(scale)),
           |row, sound| {
             row.child(SoundButton {
               available: usable(sound, self.has_nitro, current_guild_id),
               sound: sound.clone(),
               app: self.app.clone(),
               theme: self.theme,
-              ui_scale: scale.factor(),
+              ui_scale: scale,
             })
           },
         );
@@ -210,7 +210,7 @@ impl Component for Soundboard {
           .child(GuildLabel {
             name,
             theme: self.theme,
-            ui_scale: scale.factor(),
+            ui_scale: scale,
           })
           .child(buttons)
       },

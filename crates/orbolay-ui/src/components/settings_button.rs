@@ -13,18 +13,18 @@ static SETTINGS_SVG: &[u8] = include_bytes!("../../../../assets/settings.svg");
 pub struct SettingsButton {
   pub on_click: EventHandler<()>,
   pub alignment: Corner,
-  pub ui_scale: f32,
+  pub ui_scale: UiScale,
 }
 
 impl Component for SettingsButton {
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     let on_click = self.on_click.clone();
     let mut hovered = use_state(|| false);
 
     rect()
       .position(corner_position(self.alignment))
-      .padding(Gaps::new_all(16.0_f32).scaled(scale.factor()))
+      .padding(Gaps::new_all(16.0_f32).scaled(scale))
       .background(Color::TRANSPARENT)
       .cursor(CursorIcon::Pointer)
       .on_press(move |_| on_click.call(()))

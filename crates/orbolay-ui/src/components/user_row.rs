@@ -33,7 +33,7 @@ pub struct UserRow {
   pub box_size: (u32, u32),
   pub user_template: Option<String>,
   pub is_right_aligned: bool,
-  pub ui_scale: f32,
+  pub ui_scale: UiScale,
 }
 
 impl Component for UserRow {
@@ -43,7 +43,7 @@ impl Component for UserRow {
   }
 
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     let width = scale.px(self.box_size.0 as f32);
     let height = scale.px(self.box_size.1 as f32);
     let opacity = if self.user.voice_state() != UserVoiceState::Speaking
@@ -89,7 +89,7 @@ impl Component for UserRow {
         rect()
           .width(Size::px(self.box_size.0 as f32))
           .height(Size::px(self.box_size.1 as f32))
-          .scale(self.ui_scale)
+          .scale(self.ui_scale.factor())
           .child(HtmlViewer::new(handle)),
       )
       .maybe(self.can_context_menu, |el| {
@@ -102,9 +102,7 @@ impl Component for UserRow {
               Menu::new()
                 .theme(MenuContainerThemePartial {
                   background: Some(Preference::Specific(theme.darkish_gray)),
-                  padding: Some(Preference::Specific(
-                    Gaps::new_all(6.).scaled(scale.factor()),
-                  )),
+                  padding: Some(Preference::Specific(Gaps::new_all(6.).scaled(scale))),
                   shadow: Some(Preference::Specific(theme.transparent_gray)),
                   border_fill: Some(Preference::Specific(theme.muted_gray)),
                   corner_radius: Some(Preference::Specific(CornerRadius::new_all(
@@ -115,7 +113,7 @@ impl Component for UserRow {
                   user: user.clone(),
                   theme,
                   app: app.clone(),
-                  ui_scale: scale.factor(),
+                  ui_scale: scale,
                 }),
             );
           }

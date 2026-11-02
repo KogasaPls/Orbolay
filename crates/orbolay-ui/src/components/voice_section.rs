@@ -28,14 +28,14 @@ pub struct VoiceSection {
   pub display_voice_members: DisplayVoiceMembers,
   pub speaking_grace_style: SpeakingGraceStyle,
   pub theme: Theme,
-  pub ui_scale: f32,
+  pub ui_scale: UiScale,
   pub user_template_size: (u32, u32),
   pub user_template: Option<String>,
 }
 
 impl Component for VoiceSection {
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     let (x, y) = self.user_alignment.axes();
     let gaps = corner_gaps(
       self.user_alignment,
@@ -102,7 +102,7 @@ impl Component for VoiceSection {
             box_size: self.user_template_size,
             user_template: self.user_template.clone(),
             is_right_aligned,
-            ui_scale: scale.factor(),
+            ui_scale: scale,
           }
           .into();
 

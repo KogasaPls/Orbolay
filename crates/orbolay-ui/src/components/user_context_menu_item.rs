@@ -11,12 +11,12 @@ pub struct UserContextMenuItem {
   pub user: User,
   pub theme: Theme,
   pub app: AppHandle,
-  pub ui_scale: f32,
+  pub ui_scale: UiScale,
 }
 
 impl Component for UserContextMenuItem {
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     let app = self.app.clone();
     let user_id = self.user.id.clone();
     let mut slider_value = use_state(|| f64::from(self.user.volume.clamp(0., 200.) / 2.));
@@ -43,7 +43,7 @@ impl Component for UserContextMenuItem {
 
     MenuItem::new()
       .theme(menu_item_theme)
-      .padding(Gaps::new_all(4.).scaled(scale.factor()))
+      .padding(Gaps::new_all(4.).scaled(scale))
       .child(
         rect()
           .direction(Direction::Vertical)
@@ -55,7 +55,7 @@ impl Component for UserContextMenuItem {
               .main_align(Alignment::SpaceBetween)
               .cross_align(Alignment::Center)
               .width(Size::fill())
-              .margin(Gaps::new(0., 0., 8., 0.).scaled(scale.factor()))
+              .margin(Gaps::new(0., 0., 8., 0.).scaled(scale))
               .child(
                 label()
                   .font_size(scale.px(12.))

@@ -294,7 +294,7 @@ fn app(startup: Startup) -> impl IntoElement {
   let state = model.read();
   let config = &state.config;
   let open = is_open();
-  let ui_scale = UiScale::new(config.ui_scale).factor();
+  let ui_scale = UiScale::new(config.ui_scale);
   let theme = theme::Theme::from_values(
     theme::from_tuple(config.accent),
     theme::from_tuple(config.text_color),

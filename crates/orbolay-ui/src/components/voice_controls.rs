@@ -21,12 +21,12 @@ struct ControlButton {
   is_red: bool,
   on_click: EventHandler<()>,
   theme: Theme,
-  ui_scale: f32,
+  ui_scale: UiScale,
 }
 
 impl Component for ControlButton {
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     let mut hovered = use_state(|| false);
     let is_red = self.is_red;
     let icon = self.icon;
@@ -38,8 +38,8 @@ impl Component for ControlButton {
       .cross_align(Alignment::Center)
       .height(Size::fill())
       .width(Size::percent(20.0_f32))
-      .margin(Gaps::new_all(6.0_f32).scaled(scale.factor()))
-      .padding(Gaps::new_all(6.0_f32).scaled(scale.factor()))
+      .margin(Gaps::new_all(6.0_f32).scaled(scale))
+      .padding(Gaps::new_all(6.0_f32).scaled(scale))
       .corner_radius(CornerRadius::new_all(self.theme.border_radius))
       .background(if *hovered.read() {
         if is_red {
@@ -72,12 +72,12 @@ pub struct VoiceControls {
   pub app: AppHandle,
   pub soundboard_open: State<bool>,
   pub theme: Theme,
-  pub ui_scale: f32,
+  pub ui_scale: UiScale,
 }
 
 impl Component for VoiceControls {
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     let send = |command: BridgeCommand| -> EventHandler<()> {
       let app = self.app.clone();
       (move |()| app.send(command.clone())).into()
@@ -105,7 +105,7 @@ impl Component for VoiceControls {
         is_red: is_muted || is_deafened,
         on_click: send(BridgeCommand::ToggleMute),
         theme: self.theme,
-        ui_scale: scale.factor(),
+        ui_scale: scale,
       })
       .child(ControlButton {
         icon: if is_deafened {
@@ -116,7 +116,7 @@ impl Component for VoiceControls {
         is_red: is_deafened,
         on_click: send(BridgeCommand::ToggleDeaf),
         theme: self.theme,
-        ui_scale: scale.factor(),
+        ui_scale: scale,
       })
       .child(ControlButton {
         icon: SOUNDBOARD_SVG,
@@ -127,14 +127,14 @@ impl Component for VoiceControls {
         })
         .into(),
         theme: self.theme,
-        ui_scale: scale.factor(),
+        ui_scale: scale,
       })
       .child(ControlButton {
         icon: DISCONNECT_SVG,
         is_red: true,
         on_click: send(BridgeCommand::Disconnect),
         theme: self.theme,
-        ui_scale: scale.factor(),
+        ui_scale: scale,
       })
       .maybe(is_streaming, |el| {
         el.child(ControlButton {
@@ -142,7 +142,7 @@ impl Component for VoiceControls {
           is_red: true,
           on_click: send(BridgeCommand::StopStream),
           theme: self.theme,
-          ui_scale: scale.factor(),
+          ui_scale: scale,
         })
       })
   }

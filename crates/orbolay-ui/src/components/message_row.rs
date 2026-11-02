@@ -18,7 +18,7 @@ pub struct MessageRow {
   pub theme: Theme,
   pub box_size: (u32, u32),
   pub notification_template: Option<String>,
-  pub ui_scale: f32,
+  pub ui_scale: UiScale,
 }
 
 impl Component for MessageRow {
@@ -31,7 +31,7 @@ impl Component for MessageRow {
   }
 
   fn render(&self) -> impl IntoElement {
-    let scale = UiScale::new(self.ui_scale);
+    let scale = self.ui_scale;
     let width = scale.px(self.box_size.0 as f32);
     let height = scale.px(self.box_size.1 as f32);
     let message = self.message.clone();
@@ -57,13 +57,13 @@ impl Component for MessageRow {
       .cross_align(Alignment::Center)
       .width(Size::px(width))
       .height(Size::px(height))
-      .margin(Gaps::new_all(6.).scaled(scale.factor()))
+      .margin(Gaps::new_all(6.).scaled(scale))
       .cursor(CursorIcon::Pointer)
       .child(
         rect()
           .width(Size::px(self.box_size.0 as f32))
           .height(Size::px(self.box_size.1 as f32))
-          .scale(self.ui_scale)
+          .scale(self.ui_scale.factor())
           .child(HtmlViewer::new(handle)),
       )
       .on_press(move |_| {
