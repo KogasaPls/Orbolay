@@ -62,7 +62,7 @@ impl From<VoiceStatePayload> for User {
       voice_state,
       streaming: val.streaming.unwrap_or_default(),
       camera: val.camera.unwrap_or_default(),
-      volume: 100.,
+      volume: val.volume.unwrap_or(100.),
       grace_until: None,
     }
   }

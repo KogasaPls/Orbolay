@@ -86,7 +86,7 @@ impl Component for VoiceSection {
           }
 
           let is_self = self.self_id == u.id;
-          let can_context_menu = false;
+          let can_context_menu = !is_self;
           let is_voice_semitransparent = dimmed
             || matches!(
               self.display_voice_members,

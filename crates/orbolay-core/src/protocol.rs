@@ -8,7 +8,7 @@ use crate::payloads::{Notification, SoundboardSoundPayload};
 
 /// A voice participant as the bridge reports it. Speaking updates carry only `user_id` and
 /// `speaking`; full updates carry the remaining fields.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceStatePayload {
   pub user_id: String,
@@ -22,6 +22,8 @@ pub struct VoiceStatePayload {
   pub speaking: Option<bool>,
   pub streaming: Option<bool>,
   pub camera: Option<bool>,
+  /// Local playback volume, 0-200 with 100 as the default.
+  pub volume: Option<f32>,
 }
 
 fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>

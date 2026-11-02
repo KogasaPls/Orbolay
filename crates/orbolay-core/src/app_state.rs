@@ -156,6 +156,9 @@ impl AppState {
     if let Some(streaming) = state.streaming.take() {
       user.streaming = streaming;
     }
+    if let Some(volume) = state.volume {
+      user.volume = volume;
+    }
 
     let voice_state = UserVoiceState::from(&state);
     let is_speaking_update = state.mute.is_none() && state.deaf.is_none();
@@ -584,6 +587,20 @@ mod tests {
       now,
     );
     assert_eq!(voice_state(&state, "new"), None);
+  }
+
+  #[test]
+  fn full_updates_carry_the_local_volume() {
+    let mut state = joined();
+    state.apply(
+      update(VoiceStatePayload {
+        volume: Some(150.),
+        ..member("peer")
+      }),
+      Instant::now(),
+    );
+    let peer = state.voice_users.iter().find(|u| u.id == "peer").unwrap();
+    assert!((peer.volume - 150.).abs() < f32::EPSILON);
   }
 
   #[test]
