@@ -2,34 +2,27 @@
 
 use std::collections::HashMap;
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 
-/// A voice participant as the bridge reports it. Speaking updates carry only `user_id` and
-/// `speaking`; full updates carry the remaining fields.
+/// A voice member's full state, sent when they join, leave, or change mute, deafen, or stream.
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct VoiceStatePayload {
+#[serde(rename_all = "camelCase", default)]
+#[expect(
+  clippy::struct_excessive_bools,
+  reason = "independent voice flags reported by Discord"
+)]
+pub struct MemberState {
   pub user_id: String,
   pub username: Option<String>,
   pub avatar_url: Option<String>,
-  /// `None` when the field is absent, `Some(None)` when the user left voice.
-  #[serde(default, deserialize_with = "present")]
-  pub channel_id: Option<Option<String>>,
-  pub mute: Option<bool>,
-  pub deaf: Option<bool>,
-  pub speaking: Option<bool>,
-  pub streaming: Option<bool>,
-  pub camera: Option<bool>,
+  /// The member's voice channel; `None` once they left voice.
+  pub channel_id: Option<String>,
+  pub mute: bool,
+  pub deaf: bool,
+  pub streaming: bool,
+  pub camera: bool,
   /// Local playback volume, 0-200 with 100 as the default.
   pub volume: Option<f32>,
-}
-
-fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
-where
-  D: Deserializer<'de>,
-  T: Deserialize<'de>,
-{
-  T::deserialize(deserializer).map(Some)
 }
 
 /// Messages the bridge sends to Orbolay.
@@ -46,7 +39,7 @@ pub enum BridgeEvent {
     premium_type: Option<u64>,
   },
   ChannelJoined {
-    states: Vec<VoiceStatePayload>,
+    states: Vec<MemberState>,
     #[serde(default)]
     guild_id: Option<String>,
     /// The joined channel; older bridges omit it and only list members.
@@ -54,7 +47,11 @@ pub enum BridgeEvent {
     channel_id: Option<String>,
   },
   VoiceStateUpdate {
-    state: VoiceStatePayload,
+    state: MemberState,
+  },
+  Speaking {
+    user_id: String,
+    speaking: bool,
   },
   ChannelLeft,
   MessageNotification {
@@ -122,39 +119,39 @@ pub struct SoundboardSoundPayload {
 mod tests {
   use serde_json::json;
 
-  use super::{BridgeCommand, BridgeEvent, VoiceStatePayload};
+  use super::{BridgeCommand, BridgeEvent, MemberState};
 
   fn event(value: serde_json::Value) -> BridgeEvent {
     serde_json::from_value(value).unwrap()
   }
 
   #[test]
-  fn speaking_updates_omit_the_channel() {
-    let BridgeEvent::VoiceStateUpdate { state } = event(json!({
-      "cmd": "VOICE_STATE_UPDATE",
-      "state": { "userId": "1", "speaking": true }
-    })) else {
-      panic!("wrong variant");
-    };
+  fn speaking_is_its_own_event() {
     assert_eq!(
-      state,
-      VoiceStatePayload {
+      event(json!({"cmd": "SPEAKING", "userId": "1", "speaking": true})),
+      BridgeEvent::Speaking {
         user_id: "1".into(),
-        speaking: Some(true),
-        ..VoiceStatePayload::default()
+        speaking: true
       }
     );
   }
 
   #[test]
-  fn a_null_channel_means_the_user_left() {
+  fn member_states_default_missing_flags_and_a_null_channel_means_they_left() {
     let BridgeEvent::VoiceStateUpdate { state } = event(json!({
       "cmd": "VOICE_STATE_UPDATE",
-      "state": { "userId": "1", "channelId": null }
+      "state": { "userId": "1", "channelId": null, "mute": true }
     })) else {
       panic!("wrong variant");
     };
-    assert_eq!(state.channel_id, Some(None));
+    assert_eq!(
+      state,
+      MemberState {
+        user_id: "1".into(),
+        mute: true,
+        ..MemberState::default()
+      }
+    );
   }
 
   #[test]

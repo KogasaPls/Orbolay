@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
   config::Config,
-  protocol::{BridgeCommand, BridgeEvent, Notification, SoundboardSoundPayload, VoiceStatePayload},
+  protocol::{BridgeCommand, BridgeEvent, MemberState, Notification, SoundboardSoundPayload},
   user::{Speech, User},
 };
 
@@ -89,14 +89,15 @@ impl AppState {
           states
             .iter()
             .find(|state| state.user_id == self.user_id)
-            .and_then(|own| own.channel_id.clone().flatten())
+            .and_then(|own| own.channel_id.clone())
         };
         self.current_channel = channel_id.or_else(own_channel).unwrap_or_default();
         self.current_guild_id = guild_id.unwrap_or_default();
-        self.voice_users = states.into_iter().map(User::from).collect();
+        self.voice_users = states.into_iter().map(User::joined).collect();
       }
-      BridgeEvent::VoiceStateUpdate { state } => {
-        return self.update_voice_state(state, now);
+      BridgeEvent::VoiceStateUpdate { state } => self.update_member(state),
+      BridgeEvent::Speaking { user_id, speaking } => {
+        return self.set_speaking(&user_id, speaking, now);
       }
       BridgeEvent::ChannelLeft => {
         self.voice_users.clear();
@@ -127,73 +128,44 @@ impl AppState {
     None
   }
 
-  fn update_voice_state(&mut self, mut state: VoiceStatePayload, now: Instant) -> Option<Timer> {
-    let leaves_channel = match &state.channel_id {
-      Some(Some(channel_id)) => *channel_id != self.current_channel,
-      Some(None) => true,
-      None => false,
-    };
-    if leaves_channel {
+  fn update_member(&mut self, state: MemberState) {
+    if state.channel_id.as_deref() != Some(self.current_channel.as_str()) {
       self.voice_users.retain(|user| user.id != state.user_id);
-      return None;
+      return;
     }
+    match self.voice_users.iter_mut().find(|u| u.id == state.user_id) {
+      Some(user) => user.update(state),
+      None if state.username.is_some() => self.voice_users.push(User::joined(state)),
+      None => {}
+    }
+  }
 
+  /// Starts or stops a member speaking. Stopping keeps them shown as speaking for the grace
+  /// period, ended by the returned timer.
+  fn set_speaking(&mut self, user_id: &str, speaking: bool, now: Instant) -> Option<Timer> {
     let grace = Duration::from_millis(u64::from(self.config.speaking_grace_ms));
-    let Some(user) = self.voice_users.iter_mut().find(|u| u.id == state.user_id) else {
-      if state.channel_id.is_some() && state.username.is_some() {
-        self.voice_users.push(state.into());
-      }
-      return None;
-    };
-
-    if let Some(username) = &state.username {
-      user.name.clone_from(username);
-    }
-    if let Some(avatar) = &state.avatar_url {
-      user.avatar.clone_from(avatar);
-    }
-    if let Some(streaming) = state.streaming.take() {
-      user.streaming = streaming;
-    }
-    if let Some(camera) = state.camera {
-      user.camera = camera;
-    }
-    if let Some(volume) = state.volume {
-      user.volume = volume;
-    }
-
-    if let Some(muted) = state.mute {
-      user.muted = muted;
-    }
-    if let Some(deafened) = state.deaf {
-      user.deafened = deafened;
-    }
-    // Full updates carry `speaking: false` regardless; only speaking updates change it.
-    let is_speaking_update = state.mute.is_none() && state.deaf.is_none();
-    if !is_speaking_update {
-      return None;
-    }
-    match (state.speaking, user.speech) {
-      (Some(true), _) => {
+    let user = self.voice_users.iter_mut().find(|u| u.id == user_id)?;
+    match (speaking, user.speech) {
+      (true, _) => {
         user.speech = Speech::Speaking;
-        return None;
+        None
       }
-      (Some(false), Speech::Speaking) if grace.is_zero() => {
+      (false, Speech::Speaking) if grace.is_zero() => {
         user.speech = Speech::Silent;
-        return None;
+        None
       }
-      (Some(false), Speech::Speaking) => {}
-      _ => return None,
+      (false, Speech::Speaking) => {
+        let until = now + grace;
+        user.speech = Speech::Grace { until };
+        Some(Timer {
+          at: until,
+          kind: TimerKind::GraceEnd {
+            user_id: user.id.clone(),
+          },
+        })
+      }
+      (false, _) => None,
     }
-
-    let until = now + grace;
-    user.speech = Speech::Grace { until };
-    Some(Timer {
-      at: until,
-      kind: TimerKind::GraceEnd {
-        user_id: user.id.clone(),
-      },
-    })
   }
 
   /// Shows a notification, dropping the oldest beyond [`MAX_NOTIFICATIONS`].
@@ -393,33 +365,30 @@ mod tests {
   use super::{AppState, MAX_NOTIFICATIONS, Timer, TimerKind};
   use crate::{
     config::Config,
-    protocol::{BridgeEvent, Notification, SoundboardSoundPayload, VoiceStatePayload},
+    protocol::{BridgeEvent, MemberState, Notification, SoundboardSoundPayload},
     user::{User, UserVoiceState},
   };
 
   const GRACE: Duration = Duration::from_millis(300);
 
-  fn member(user_id: &str) -> VoiceStatePayload {
-    VoiceStatePayload {
+  fn member(user_id: &str) -> MemberState {
+    MemberState {
       user_id: user_id.into(),
       username: Some(format!("user {user_id}")),
-      channel_id: Some(Some("voice".into())),
-      mute: Some(false),
-      deaf: Some(false),
-      ..VoiceStatePayload::default()
+      channel_id: Some("voice".into()),
+      ..MemberState::default()
     }
   }
 
-  fn update(state: VoiceStatePayload) -> BridgeEvent {
+  fn update(state: MemberState) -> BridgeEvent {
     BridgeEvent::VoiceStateUpdate { state }
   }
 
   fn speaking(user_id: &str, speaking: bool) -> BridgeEvent {
-    update(VoiceStatePayload {
+    BridgeEvent::Speaking {
       user_id: user_id.into(),
-      speaking: Some(speaking),
-      ..VoiceStatePayload::default()
-    })
+      speaking,
+    }
   }
 
   fn joined() -> AppState {
@@ -543,8 +512,8 @@ mod tests {
     let now = Instant::now();
     state.apply(speaking("peer", true), now);
     let effects = state.apply(
-      update(VoiceStatePayload {
-        mute: Some(true),
+      update(MemberState {
+        mute: true,
         ..member("peer")
       }),
       now,
@@ -559,8 +528,8 @@ mod tests {
     let now = Instant::now();
     state.apply(speaking("peer", true), now);
     state.apply(
-      update(VoiceStatePayload {
-        mute: Some(true),
+      update(MemberState {
+        mute: true,
         ..member("peer")
       }),
       now,
@@ -570,8 +539,8 @@ mod tests {
     state.fire(&grace_end(now + GRACE), now + GRACE);
 
     state.apply(
-      update(VoiceStatePayload {
-        mute: Some(false),
+      update(MemberState {
+        mute: false,
         ..member("peer")
       }),
       now,
@@ -587,13 +556,7 @@ mod tests {
     let mut state = joined();
     let now = Instant::now();
     state.apply(speaking("peer", true), now);
-    state.apply(
-      update(VoiceStatePayload {
-        speaking: Some(false),
-        ..member("peer")
-      }),
-      now,
-    );
+    state.apply(update(member("peer")), now);
     assert_eq!(voice_state(&state, "peer"), Some(UserVoiceState::Speaking));
   }
 
@@ -602,8 +565,8 @@ mod tests {
     let mut state = joined();
     let now = Instant::now();
     state.apply(
-      update(VoiceStatePayload {
-        channel_id: Some(None),
+      update(MemberState {
+        channel_id: None,
         ..member("peer")
       }),
       now,
@@ -613,8 +576,8 @@ mod tests {
     state.apply(update(member("new")), now);
     assert!(voice_state(&state, "new").is_some());
     state.apply(
-      update(VoiceStatePayload {
-        channel_id: Some(Some("elsewhere".into())),
+      update(MemberState {
+        channel_id: Some("elsewhere".into()),
         ..member("new")
       }),
       now,
@@ -626,8 +589,8 @@ mod tests {
   fn full_updates_carry_the_camera() {
     let mut state = joined();
     state.apply(
-      update(VoiceStatePayload {
-        camera: Some(true),
+      update(MemberState {
+        camera: true,
         ..member("peer")
       }),
       Instant::now(),
@@ -639,7 +602,7 @@ mod tests {
   fn full_updates_carry_the_local_volume() {
     let mut state = joined();
     state.apply(
-      update(VoiceStatePayload {
+      update(MemberState {
         volume: Some(150.),
         ..member("peer")
       }),

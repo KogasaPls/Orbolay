@@ -51,24 +51,39 @@ impl User {
   }
 }
 
-use crate::protocol::VoiceStatePayload;
+use crate::protocol::MemberState;
 
-impl From<VoiceStatePayload> for User {
-  fn from(val: VoiceStatePayload) -> Self {
+impl User {
+  /// A member who just appeared, not yet speaking.
+  pub fn joined(state: MemberState) -> Self {
     Self {
-      name: val.username.unwrap_or_else(|| "Unknown".to_owned()),
-      id: val.user_id,
-      avatar: val.avatar_url.unwrap_or_default(),
-      muted: val.mute.unwrap_or_default(),
-      deafened: val.deaf.unwrap_or_default(),
-      speech: if val.speaking == Some(true) {
-        Speech::Speaking
-      } else {
-        Speech::Silent
-      },
-      streaming: val.streaming.unwrap_or_default(),
-      camera: val.camera.unwrap_or_default(),
-      volume: val.volume.unwrap_or(100.),
+      name: state.username.unwrap_or_else(|| "Unknown".to_owned()),
+      id: state.user_id,
+      avatar: state.avatar_url.unwrap_or_default(),
+      muted: state.mute,
+      deafened: state.deaf,
+      speech: Speech::Silent,
+      streaming: state.streaming,
+      camera: state.camera,
+      volume: state.volume.unwrap_or(100.),
     }
+  }
+
+  /// Applies a full state update, keeping what it does not carry: speech, and the name, avatar,
+  /// and volume when they are missing.
+  pub fn update(&mut self, state: MemberState) {
+    if let Some(name) = state.username {
+      self.name = name;
+    }
+    if let Some(avatar) = state.avatar_url {
+      self.avatar = avatar;
+    }
+    if let Some(volume) = state.volume {
+      self.volume = volume;
+    }
+    self.muted = state.mute;
+    self.deafened = state.deaf;
+    self.streaming = state.streaming;
+    self.camera = state.camera;
   }
 }
