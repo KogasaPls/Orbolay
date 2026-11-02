@@ -7,7 +7,7 @@ use orbolay_core::{app_state::AppState, payloads::Notification, util::bridge::Br
 
 use crate::util::{
   html_template::is_network_url,
-  notification_template::{self, load_notification_template},
+  notification_template::{self, load_notification_template, render_notification},
   scale::{GapsScaleExt, UiScale},
   theme::Theme,
 };
@@ -50,7 +50,7 @@ impl Component for MessageRow {
       let (message, theme, notification_template) = deps.clone();
       let template = load_notification_template(notification_template.as_deref());
       let mut handle = handle;
-      handle.replace_html(template.render(&message, &theme));
+      handle.replace_html(render_notification(&template, &message, &theme));
     });
 
     rect()

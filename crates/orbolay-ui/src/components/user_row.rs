@@ -13,7 +13,7 @@ use crate::{
   util::{
     scale::{GapsScaleExt, UiScale},
     theme::Theme,
-    user_template::load_user_template,
+    user_template::{load_user_template, render_user},
   },
 };
 
@@ -68,7 +68,13 @@ impl Component for UserRow {
       let (user, is_self, theme, user_template, is_right_aligned) = deps.clone();
       let template = load_user_template(user_template.as_deref());
       let mut handle = handle;
-      handle.replace_html(template.render(&user, is_self, &theme, is_right_aligned));
+      handle.replace_html(render_user(
+        &template,
+        &user,
+        is_self,
+        &theme,
+        is_right_aligned,
+      ));
     });
 
     rect()
