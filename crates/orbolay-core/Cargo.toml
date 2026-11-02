@@ -5,7 +5,6 @@ edition = "2024"
 rust-version = "1.95"
 
 [dependencies]
-chrono = { workspace = true }
 dirs = { workspace = true }
 flume = { workspace = true }
 serde = { workspace = true }

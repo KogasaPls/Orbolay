@@ -1,6 +1,3 @@
-#![allow(clippy::borrow_interior_mutable_const)]
-#![allow(clippy::declare_interior_mutable_const)]
-
 use std::{collections::HashMap, sync::atomic::Ordering};
 
 use freya::prelude::*;
