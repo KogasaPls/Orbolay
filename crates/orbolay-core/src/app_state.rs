@@ -140,8 +140,8 @@ impl AppState {
             .push(sound);
         }
         let soundboard = Arc::make_mut(&mut self.soundboard);
-        soundboard.sounds.extend(by_guild);
-        soundboard.guild_names.extend(guild_names);
+        soundboard.sounds = by_guild;
+        soundboard.guild_names = guild_names;
       }
     }
     None
@@ -153,13 +153,12 @@ impl AppState {
       call.members.retain(|user| user.id != state.user_id);
       return;
     }
-    match call.members.iter_mut().find(|u| u.id == state.user_id) {
-      Some(user) => user.update(state),
-      None if state.username.is_some() => {
-        let at = call.members.partition_point(|user| user.id < state.user_id);
-        call.members.insert(at, User::joined(state));
-      }
-      None => {}
+    match call
+      .members
+      .binary_search_by(|user| user.id.as_str().cmp(&state.user_id))
+    {
+      Ok(at) => call.members[at].update(state),
+      Err(at) => call.members.insert(at, User::joined(state)),
     }
   }
 
@@ -756,7 +755,7 @@ mod tests {
   }
 
   #[test]
-  fn soundboard_updates_merge_by_guild() {
+  fn each_soundboard_update_replaces_the_last() {
     let sound = |id: &str, guild: Option<&str>| SoundboardSoundPayload {
       sound_id: id.into(),
       name: id.into(),
@@ -782,8 +781,8 @@ mod tests {
       },
       now,
     );
-    assert_eq!(state.soundboard.sounds[&None].len(), 1);
+    assert_eq!(state.soundboard.sounds.len(), 1);
     assert_eq!(state.soundboard.sounds[&Some("g".into())][0].sound_id, "c");
-    assert_eq!(state.soundboard.guild_names["g"], "Guild");
+    assert!(state.soundboard.guild_names.is_empty());
   }
 }

@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 /// A voice member's full state, sent when they join, leave, or change mute, deafen, or stream.
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
@@ -14,7 +14,8 @@ use serde::{Deserialize, Serialize};
 pub struct MemberState {
   pub user_id: String,
   pub username: Option<String>,
-  pub avatar_url: Option<String>,
+  /// Discord avatar hash.
+  pub avatar: Option<String>,
   /// The member's voice channel; `None` once they left voice.
   pub channel_id: Option<String>,
   pub mute: bool,
@@ -93,11 +94,21 @@ pub enum BridgeCommand {
   },
 }
 
+/// Reads a missing or null field as its default.
+fn nullable<'de, D: Deserializer<'de>, T: Default + Deserialize<'de>>(
+  deserializer: D,
+) -> Result<T, D::Error> {
+  Ok(Option::deserialize(deserializer)?.unwrap_or_default())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Notification {
+  #[serde(default, deserialize_with = "nullable")]
   pub title: String,
+  #[serde(default, deserialize_with = "nullable")]
   pub body: String,
+  #[serde(default, deserialize_with = "nullable")]
   pub icon: String,
   pub guild_id: Option<String>,
   pub channel_id: Option<String>,
@@ -165,6 +176,24 @@ mod tests {
         mute: true,
         ..MemberState::default()
       }
+    );
+  }
+
+  #[test]
+  fn notifications_tolerate_missing_and_null_text() {
+    let BridgeEvent::MessageNotification { message } = event(json!({
+      "cmd": "MESSAGE_NOTIFICATION",
+      "message": { "title": "T", "body": null, "channelId": "1" }
+    })) else {
+      panic!("wrong variant");
+    };
+    assert_eq!(
+      (
+        message.title.as_str(),
+        message.body.as_str(),
+        message.icon.as_str()
+      ),
+      ("T", "", "")
     );
   }
 
