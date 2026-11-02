@@ -194,38 +194,38 @@ impl Default for Config {
   }
 }
 
-/// The on-disk format, accepting missing fields, `null`s written by older versions, and
-/// unrecognized enum values, each of which falls back to the default.
+/// The on-disk format. A missing field, a `null` written by older versions, or a value of the wrong
+/// type or range falls back to that field's default without affecting the others.
 #[derive(Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 struct RawConfig {
-  overlay_keybind: Option<Vec<String>>,
-  is_keybind_enabled: Option<bool>,
-  display_idx: Option<usize>,
-  display_name: Option<String>,
-  port: Option<u16>,
-  enable_message_notifications: Option<bool>,
+  overlay_keybind: Lenient<Vec<String>>,
+  is_keybind_enabled: Lenient<bool>,
+  display_idx: Lenient<usize>,
+  display_name: Lenient<String>,
+  port: Lenient<u16>,
+  enable_message_notifications: Lenient<bool>,
   message_alignment: Lenient<Corner>,
   user_alignment: Lenient<Corner>,
-  message_offset_x: Option<i32>,
-  message_offset_y: Option<i32>,
-  user_offset_x: Option<i32>,
-  user_offset_y: Option<i32>,
+  message_offset_x: Lenient<i32>,
+  message_offset_y: Lenient<i32>,
+  user_offset_x: Lenient<i32>,
+  user_offset_y: Lenient<i32>,
   display_voice_members: Lenient<DisplayVoiceMembers>,
-  speaking_grace_ms: Option<u32>,
+  speaking_grace_ms: Lenient<u32>,
   speaking_grace_style: Lenient<SpeakingGraceStyle>,
-  messages_semitransparent: Option<bool>,
-  software_rendering: Option<bool>,
-  xwayland: Option<bool>,
-  accent: Option<Rgb>,
-  text_color: Option<Rgb>,
-  border_radius: Option<f32>,
-  ui_scale: Option<f32>,
-  user_template: Option<String>,
-  notification_template: Option<String>,
+  messages_semitransparent: Lenient<bool>,
+  software_rendering: Lenient<bool>,
+  xwayland: Lenient<bool>,
+  accent: Lenient<Rgb>,
+  text_color: Lenient<Rgb>,
+  border_radius: Lenient<f32>,
+  ui_scale: Lenient<f32>,
+  user_template: Lenient<String>,
+  notification_template: Lenient<String>,
 }
 
-/// An enum value that reads as `None` when it is `null` or not a known variant.
+/// A value that reads as `None` when it is `null` or does not parse as `T`.
 struct Lenient<T>(Option<T>);
 
 impl<T> Default for Lenient<T> {
@@ -245,35 +245,36 @@ impl From<RawConfig> for Config {
   fn from(raw: RawConfig) -> Self {
     let d = Self::default();
     Self {
-      overlay_keybind: raw.overlay_keybind.unwrap_or(d.overlay_keybind),
-      keybind_enabled: raw.is_keybind_enabled.unwrap_or(d.keybind_enabled),
-      display_idx: raw.display_idx,
-      display_name: raw.display_name,
-      port: raw.port.unwrap_or(d.port),
+      overlay_keybind: raw.overlay_keybind.0.unwrap_or(d.overlay_keybind),
+      keybind_enabled: raw.is_keybind_enabled.0.unwrap_or(d.keybind_enabled),
+      display_idx: raw.display_idx.0,
+      display_name: raw.display_name.0,
+      port: raw.port.0.unwrap_or(d.port),
       enable_message_notifications: raw
         .enable_message_notifications
+        .0
         .unwrap_or(d.enable_message_notifications),
       message_alignment: raw.message_alignment.0.unwrap_or(d.message_alignment),
       user_alignment: raw.user_alignment.0.unwrap_or(d.user_alignment),
-      message_offset_x: raw.message_offset_x.unwrap_or_default(),
-      message_offset_y: raw.message_offset_y.unwrap_or_default(),
-      user_offset_x: raw.user_offset_x.unwrap_or_default(),
-      user_offset_y: raw.user_offset_y.unwrap_or_default(),
+      message_offset_x: raw.message_offset_x.0.unwrap_or_default(),
+      message_offset_y: raw.message_offset_y.0.unwrap_or_default(),
+      user_offset_x: raw.user_offset_x.0.unwrap_or_default(),
+      user_offset_y: raw.user_offset_y.0.unwrap_or_default(),
       display_voice_members: raw
         .display_voice_members
         .0
         .unwrap_or(d.display_voice_members),
-      speaking_grace_ms: raw.speaking_grace_ms.unwrap_or(d.speaking_grace_ms),
+      speaking_grace_ms: raw.speaking_grace_ms.0.unwrap_or(d.speaking_grace_ms),
       speaking_grace_style: raw.speaking_grace_style.0.unwrap_or_default(),
-      messages_semitransparent: raw.messages_semitransparent.unwrap_or_default(),
-      software_rendering: raw.software_rendering.unwrap_or_default(),
-      xwayland: raw.xwayland.unwrap_or(d.xwayland),
-      accent: raw.accent.unwrap_or(d.accent),
-      text_color: raw.text_color.unwrap_or(d.text_color),
-      border_radius: raw.border_radius.unwrap_or(d.border_radius),
-      ui_scale: raw.ui_scale.unwrap_or(d.ui_scale),
-      user_template: raw.user_template,
-      notification_template: raw.notification_template,
+      messages_semitransparent: raw.messages_semitransparent.0.unwrap_or_default(),
+      software_rendering: raw.software_rendering.0.unwrap_or_default(),
+      xwayland: raw.xwayland.0.unwrap_or(d.xwayland),
+      accent: raw.accent.0.unwrap_or(d.accent),
+      text_color: raw.text_color.0.unwrap_or(d.text_color),
+      border_radius: raw.border_radius.0.unwrap_or(d.border_radius),
+      ui_scale: raw.ui_scale.0.unwrap_or(d.ui_scale),
+      user_template: raw.user_template.0,
+      notification_template: raw.notification_template.0,
     }
     .normalized()
   }
@@ -481,6 +482,14 @@ mod tests {
       "softwareRendering": null
     }));
     assert_eq!(config, Config::default());
+  }
+
+  #[test]
+  fn a_mistyped_value_resets_only_its_own_field() {
+    let config = parse(json!({ "port": 70000, "uiScale": "1.5", "speakingGraceMs": 900 }));
+    assert_eq!(config.port, Config::default().port);
+    assert!((config.ui_scale - Config::default().ui_scale).abs() < f32::EPSILON);
+    assert_eq!(config.speaking_grace_ms, 900);
   }
 
   #[test]
