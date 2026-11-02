@@ -16,11 +16,9 @@ the overlay is closed (with an X11 input shape, since `set_cursor_hittest` is no
 | Crate | Owns |
 | --- | --- |
 | `orbolay-core` | Config file format, the bridge protocol, and `AppState` with its transitions |
-| `orbolay-transport` | The websocket server for the bridge and the config file watcher |
 | `orbolay-keys` | Key names stored in the config and matching held keys against binds |
-| `orbolay-control` | The local socket behind `--toggle-overlay`, `--mute`, and `--deafen` |
 | `orbolay-ui` | Freya components, HTML templates, and the settings window |
-| `orbolay` (root) | Startup, window setup, and the evdev keybind listener |
+| `orbolay` (root) | Startup and window setup, plus the threads that feed the state: the bridge websocket server (`bridge.rs`), the config file watcher, the control socket behind `--toggle-overlay`, `--mute`, and `--deafen` (`control.rs`), and the evdev keybind listener (`keys/`) |
 
 ## State
 

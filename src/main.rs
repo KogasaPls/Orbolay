@@ -3,7 +3,6 @@ use std::sync::atomic::Ordering;
 use freya::prelude::*;
 use gumdrop::Options;
 use log::warn;
-use orbolay_control::Command;
 use orbolay_core::{
   app_state::{AppHandle, AppState},
   config::{Config, Corner, LoadError, load_config, save_config},
@@ -11,7 +10,6 @@ use orbolay_core::{
   protocol::BridgeCommand,
 };
 use orbolay_keys::KeyEvent;
-use orbolay_transport::{create_transport_thread, start_config_watcher};
 use orbolay_ui::{
   components::{MessagesSection, SettingsButton, Soundboard, VoiceControls, VoiceSection},
   open_configurator, open_configurator_standalone, populate_monitor_cache,
@@ -25,8 +23,14 @@ use winit::{
   window::WindowLevel,
 };
 
-use crate::display::{select_monitor, update_monitor, window_size_for_display};
+use crate::{
+  control::Command,
+  display::{select_monitor, update_monitor, window_size_for_display},
+};
 
+mod bridge;
+mod config_watcher;
+mod control;
 mod display;
 mod keys;
 mod target;
@@ -118,7 +122,7 @@ fn main() {
   }
 
   if args.toggle_overlay || args.mute || args.deafen {
-    let Ok(mut client) = orbolay_control::Client::connect() else {
+    let Ok(mut client) = control::Client::connect() else {
       eprintln!("Could not connect to Orbolay. Is it running?");
       std::process::exit(1);
     };
@@ -132,7 +136,7 @@ fn main() {
     .flatten();
 
     for cmd in commands {
-      if let Err(e) = client.send(&cmd) {
+      if let Err(e) = client.send(cmd) {
         eprintln!("Failed to send command: {e}");
         std::process::exit(1);
       }
@@ -141,7 +145,7 @@ fn main() {
     std::process::exit(0);
   }
 
-  if orbolay_control::Client::connect().is_ok() {
+  if control::Client::connect().is_ok() {
     eprintln!("Orbolay is already running; stop it before starting another instance.");
     std::process::exit(1);
   }
@@ -425,7 +429,7 @@ fn start_background(
   keys::watch_keybinds(app.clone(), toggle_tx.clone());
 
   let ctrl_app = app.clone();
-  orbolay_control::start(move |cmd| match cmd {
+  control::start(move |cmd| match cmd {
     Command::ToggleOverlay => {
       if !ctrl_app.recording_keybind().load(Ordering::Relaxed) {
         let _ = toggle_tx.send(KeyEvent::ToggleOverlay);
@@ -435,7 +439,7 @@ fn start_background(
     Command::Deafen => ctrl_app.send(BridgeCommand::ToggleDeaf),
   });
 
-  create_transport_thread(app.clone(), startup.port, commands);
+  bridge::start(app.clone(), startup.port, commands);
 
   if startup.first_run
     && let Err(err) = save_config(&startup.config)
@@ -443,5 +447,5 @@ fn start_background(
     warn!("Failed to save config.json: {err}");
   }
 
-  start_config_watcher(app.clone());
+  config_watcher::start(app.clone());
 }

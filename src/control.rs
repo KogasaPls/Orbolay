@@ -94,8 +94,8 @@ impl Client {
     Ok(Self { stream })
   }
 
-  pub fn send(&mut self, cmd: &Command) -> Result<(), Box<dyn std::error::Error>> {
-    let mut payload = serde_json::to_string(cmd)?;
+  pub fn send(&mut self, cmd: Command) -> Result<(), Box<dyn std::error::Error>> {
+    let mut payload = serde_json::to_string(&cmd)?;
     payload.push('\n');
     self.stream.write_all(payload.as_bytes())?;
     Ok(())

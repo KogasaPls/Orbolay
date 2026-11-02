@@ -10,7 +10,7 @@ use orbolay_core::{
 
 /// Applies edits made to config.json outside Orbolay. Saves from the settings window reload as
 /// no-ops because `set_config` ignores unchanged configs.
-pub fn start_config_watcher(app: AppHandle) {
+pub fn start(app: AppHandle) {
   info!("Starting config file notification thread");
   std::thread::spawn(move || {
     let (tx, rx) = mpsc::channel::<Result<Event>>();

@@ -4023,32 +4023,25 @@ dependencies = [
 name = "orbolay"
 version = "4.3.0"
 dependencies = [
+ "dirs",
  "env_logger",
  "evdev",
  "flume",
  "freya",
+ "futures-util",
  "gumdrop",
- "log",
- "notify",
- "orbolay-control",
- "orbolay-core",
- "orbolay-keys",
- "orbolay-transport",
- "orbolay-ui",
- "tokio",
- "winit",
- "x11rb",
-]
-
-[[package]]
-name = "orbolay-control"
-version = "0.1.0"
-dependencies = [
- "dirs",
  "interprocess",
  "log",
+ "notify",
+ "orbolay-core",
+ "orbolay-keys",
+ "orbolay-ui",
  "serde",
  "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+ "winit",
+ "x11rb",
 ]
 
 [[package]]
@@ -4068,20 +4061,6 @@ dependencies = [
  "evdev",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "orbolay-transport"
-version = "4.3.0"
-dependencies = [
- "flume",
- "futures-util",
- "log",
- "notify",
- "orbolay-core",
- "serde_json",
- "tokio",
- "tokio-tungstenite",
 ]
 
 [[package]]
