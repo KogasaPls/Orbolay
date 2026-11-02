@@ -1,7 +1,7 @@
 use freya::prelude::Code;
-use rdev::Key;
+use orbolay_keys::Key;
 
-pub fn code_to_rdev(code: Code) -> Option<Key> {
+pub fn code_to_key(code: Code) -> Option<Key> {
   match code {
     Code::AltLeft => Some(Key::Alt),
     Code::AltRight => Some(Key::AltGr),

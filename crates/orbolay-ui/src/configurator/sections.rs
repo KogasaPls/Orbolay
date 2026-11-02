@@ -67,10 +67,7 @@ pub fn apply_config(
   mut local_config: State<Config>,
   update: impl FnOnce(&mut Config),
 ) {
-  let updated = app.update(|state| {
-    update(&mut state.config);
-    state.config.clone()
-  });
+  let updated = app.set_config(update);
 
   if let Err(err) = save_config(&updated) {
     warn!("Failed to save config.json: {err}");

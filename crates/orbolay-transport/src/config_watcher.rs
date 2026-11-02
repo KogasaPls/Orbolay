@@ -81,13 +81,7 @@ fn apply_config_change(
     return;
   }
   info!("Config file changed, reloading");
-  app.update_if_changed(|state| {
-    let changed = state.config != new_config;
-    if changed {
-      state.config = new_config.clone();
-    }
-    changed
-  });
+  app.set_config(|config| config.clone_from(&new_config));
   on_config_change(previous_config, &new_config);
   *previous_config = new_config;
 }

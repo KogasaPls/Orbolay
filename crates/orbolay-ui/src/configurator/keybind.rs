@@ -5,10 +5,9 @@ use std::sync::{
 
 use freya::animation::{AnimColor, OnFinish, use_animation};
 use freya::prelude::*;
-use rdev::Key;
 
-use crate::key_support::code_to_rdev;
-use orbolay_keys::key_to_string;
+use crate::key_support::code_to_key;
+use orbolay_keys::{Key, key_to_string};
 
 pub fn keys_display(keys: &[Key]) -> String {
   keys
@@ -86,7 +85,7 @@ impl Component for KeybindControl {
         return;
       }
 
-      let Some(key) = code_to_rdev(event.data().code) else {
+      let Some(key) = code_to_key(event.data().code) else {
         return;
       };
 
@@ -109,7 +108,7 @@ impl Component for KeybindControl {
         return;
       }
 
-      let Some(key) = code_to_rdev(event.data().code) else {
+      let Some(key) = code_to_key(event.data().code) else {
         return;
       };
 

@@ -1,117 +1,205 @@
-use std::cell::RefCell;
-use std::sync::{
-  Arc, RwLock,
-  atomic::{AtomicBool, Ordering},
+//! Reads keyboards through evdev without grabbing them, so other programs still receive every
+//! key press. Devices are only open while global keybinds are enabled.
+
+use std::{
+  path::PathBuf,
+  sync::atomic::{AtomicBool, Ordering},
+  time::{Duration, Instant},
 };
-use std::thread;
-use std::time::Duration;
 
-use rdev::{Event, grab, listen};
+use evdev::{Device, EventSummary};
+use log::{debug, info, warn};
+use notify::{EventKind, RecursiveMode, Watcher};
+use tokio::task::JoinSet;
 
-use log::{info, warn};
-use orbolay_core::app_state::AppHandle;
+use orbolay_core::{app_state::AppHandle, config::Config};
+use orbolay_keys::{Key, KeyEvent, KeyState, Keybind, strings_to_keys};
 
-use orbolay_keys::{KeyEvent, KeyState, Keybind, strings_to_keys};
+const INPUT_DIR: &str = "/dev/input";
+/// udev applies device permissions shortly after the node appears.
+const HOTPLUG_DELAY: Duration = Duration::from_millis(500);
 
 pub fn watch_keybinds(app: AppHandle, keybind_tx: flume::Sender<KeyEvent>) {
-  let enabled = Arc::new(AtomicBool::new(true));
-  let keybinds: Arc<RwLock<Vec<Keybind>>> = Arc::new(RwLock::new(vec![Keybind::new(
-    Vec::new(),
-    KeyEvent::ToggleOverlay,
-  )]));
-  let recording = app.recording_keybind().clone();
-
-  if !app.read(|state| state.config.keybind_enabled) {
-    info!("Global keybinds are disabled; not watching input devices until enabled");
-  }
-
-  // Poll config every second to sync keybind/enabled state, and start the
-  // listener the first time keybinds are enabled
-  {
-    thread::spawn(move || {
-      let mut listening = false;
-
-      loop {
-        let (is_enabled, overlay_keybind) = app.read(|state| {
-          (
-            state.config.keybind_enabled,
-            state.config.overlay_keybind.clone(),
-          )
-        });
-
-        enabled.store(is_enabled, Ordering::Relaxed);
-
-        if is_enabled && !listening {
-          listening = true;
-          start_listener(
-            enabled.clone(),
-            keybinds.clone(),
-            recording.clone(),
-            keybind_tx.clone(),
-          );
-        }
-
-        let overlay_keys = strings_to_keys(&overlay_keybind);
-
-        {
-          let mut kbs = keybinds.write().unwrap();
-          if let Some(kb) = kbs
-            .iter_mut()
-            .find(|kb| matches!(kb.event, KeyEvent::ToggleOverlay))
-            && kb.keys != overlay_keys
-          {
-            kb.keys.clone_from(&overlay_keys);
-            kb.reset();
-          }
-        }
-
-        thread::sleep(Duration::from_secs(1));
+  let config_rx = app.subscribe_config();
+  let spawned = std::thread::Builder::new()
+    .name("orbolay-keys".into())
+    .spawn(move || {
+      let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_io()
+        .enable_time()
+        .build();
+      match runtime {
+        Ok(runtime) => runtime.block_on(run(&app, &config_rx, &keybind_tx)),
+        Err(e) => warn!("Could not start the keybind runtime: {e}"),
       }
     });
+  if let Err(e) = spawned {
+    warn!("Could not start the keybind thread: {e}");
   }
 }
 
-fn start_listener(
-  enabled: Arc<AtomicBool>,
-  keybinds: Arc<RwLock<Vec<Keybind>>>,
-  recording: Arc<AtomicBool>,
-  keybind_tx: flume::Sender<KeyEvent>,
-) {
-  thread::spawn(move || {
-    let keybind_tx_grab = keybind_tx.clone();
-    let enabled_grab = enabled.clone();
-    let keybinds_grab = keybinds.clone();
-    let recording_grab = recording.clone();
-    let key_state_grab = RefCell::new(KeyState::new());
+/// The overlay keybind, or `None` while keybinds are disabled or unset.
+fn overlay_keys(config: &Config) -> Option<Vec<Key>> {
+  config
+    .keybind_enabled
+    .then(|| strings_to_keys(&config.overlay_keybind))
+    .filter(|keys| !keys.is_empty())
+}
 
-    let grab_result = grab(move |event: Event| {
-      if !recording_grab.load(Ordering::Relaxed) && enabled_grab.load(Ordering::Relaxed) {
-        let kbs = keybinds_grab.read().unwrap();
-        for event in
-          orbolay_keys::process(&event.event_type, &mut key_state_grab.borrow_mut(), &kbs)
-        {
-          let _ = keybind_tx_grab.send(event);
+async fn run(
+  app: &AppHandle,
+  config_rx: &flume::Receiver<Config>,
+  keybind_tx: &flume::Sender<KeyEvent>,
+) {
+  let mut keys = app.read(|state| overlay_keys(&state.config));
+  if keys.is_none() {
+    info!("Global keybinds are disabled; not reading input devices");
+  }
+
+  loop {
+    let listening = async {
+      match &keys {
+        Some(keys) => listen(keys.clone(), app.recording_keybind(), keybind_tx).await,
+        None => std::future::pending().await,
+      }
+    };
+    tokio::select! {
+      () = listening => keys = None,
+      config = config_rx.recv_async() => {
+        let Ok(config) = config else { return };
+        let new_keys = overlay_keys(&config);
+        if new_keys != keys {
+          debug!("Overlay keybind changed to {new_keys:?}");
+          keys = new_keys;
         }
       }
-      Some(event)
-    });
+    }
+  }
+}
 
-    if let Err(e) = grab_result {
-      warn!("Failed to grab global hotkeys: {e:?}");
+/// Reads every device that can send one of `keys` until the future is dropped, which closes
+/// the devices.
+async fn listen(keys: Vec<Key>, recording: &AtomicBool, keybind_tx: &flume::Sender<KeyEvent>) {
+  let (key_tx, key_rx) = flume::unbounded::<(Key, bool)>();
+  let mut readers = JoinSet::new();
+  let mut opened = 0;
+  for (path, device) in evdev::enumerate() {
+    if relevant(&path, &device, &keys) && open(&mut readers, &path, device, &key_tx) {
+      opened += 1;
+    }
+  }
+  if opened == 0 {
+    warn!(
+      "No readable keyboard in {INPUT_DIR}; add your user to the input group or bind `orbolay --toggle-overlay` in your desktop's shortcut settings"
+    );
+  } else {
+    info!("Listening for the overlay keybind on {opened} device(s)");
+  }
 
-      let key_state_listen = RefCell::new(KeyState::new());
-      if let Err(e) = listen(move |event: Event| {
-        if !recording.load(Ordering::Relaxed) && enabled.load(Ordering::Relaxed) {
-          let kbs = keybinds.read().unwrap();
-          for event in
-            orbolay_keys::process(&event.event_type, &mut key_state_listen.borrow_mut(), &kbs)
+  let (added_tx, added_rx) = flume::unbounded::<PathBuf>();
+  let _watcher = watch_new_devices(added_tx);
+
+  let mut binds = vec![Keybind::new(keys.clone(), KeyEvent::ToggleOverlay)];
+  let mut state = KeyState::default();
+  loop {
+    tokio::select! {
+      change = key_rx.recv_async() => {
+        let Ok((key, pressed)) = change else { return };
+        if recording.load(Ordering::Relaxed) {
+          continue;
+        }
+        for event in state.process(key, pressed, &mut binds, Instant::now()) {
+          info!("Keybind pressed: {event:?}");
+          let _ = keybind_tx.send(event);
+        }
+      }
+      Ok(path) = added_rx.recv_async() => {
+        tokio::time::sleep(HOTPLUG_DELAY).await;
+        if let Ok(device) = Device::open(&path)
+          && relevant(&path, &device, &keys)
+        {
+          open(&mut readers, &path, device, &key_tx);
+        }
+      }
+    }
+  }
+}
+
+/// Whether `device` can send any key in `keys`.
+fn relevant(path: &std::path::Path, device: &Device, keys: &[Key]) -> bool {
+  let relevant = device
+    .supported_keys()
+    .is_some_and(|supported| keys.iter().any(|key| supported.contains(key.code())));
+  if !relevant {
+    debug!("Skipping {} ({})", device_name(device), path.display());
+  }
+  relevant
+}
+
+fn device_name(device: &Device) -> String {
+  device.name().unwrap_or("unnamed device").to_owned()
+}
+
+/// Starts forwarding key presses and releases from `device`. Returns whether it could be read.
+fn open(
+  readers: &mut JoinSet<()>,
+  path: &std::path::Path,
+  device: Device,
+  key_tx: &flume::Sender<(Key, bool)>,
+) -> bool {
+  let name = device_name(&device);
+  let mut events = match device.into_event_stream() {
+    Ok(events) => events,
+    Err(e) => {
+      debug!("Cannot read {name} ({}): {e}", path.display());
+      return false;
+    }
+  };
+  debug!("Reading keys from {name} ({})", path.display());
+
+  let key_tx = key_tx.clone();
+  readers.spawn(async move {
+    loop {
+      match events.next_event().await.map(EventSummary::from) {
+        Ok(EventSummary::Key(_, code, value @ (0 | 1))) => {
+          if let Some(key) = Key::from_code(code)
+            && key_tx.send((key, value == 1)).is_err()
           {
-            let _ = keybind_tx.send(event);
+            return;
           }
         }
-      }) {
-        warn!("Failed to listen for global hotkeys: {e:?}");
+        Ok(_) => {}
+        Err(e) => {
+          debug!("Stopped reading {name}: {e}");
+          return;
+        }
       }
     }
   });
+  true
+}
+
+/// Reports input devices created after startup.
+fn watch_new_devices(added_tx: flume::Sender<PathBuf>) -> Option<notify::RecommendedWatcher> {
+  let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+    let Ok(event) = event else { return };
+    if !matches!(event.kind, EventKind::Create(_)) {
+      return;
+    }
+    for path in event.paths {
+      let is_event_node = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with("event"));
+      if is_event_node {
+        let _ = added_tx.send(path);
+      }
+    }
+  })
+  .ok()?;
+  watcher
+    .watch(INPUT_DIR.as_ref(), RecursiveMode::NonRecursive)
+    .map_err(|e| debug!("Cannot watch {INPUT_DIR} for new devices: {e}"))
+    .ok()?;
+  Some(watcher)
 }

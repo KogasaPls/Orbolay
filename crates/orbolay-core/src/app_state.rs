@@ -1,7 +1,7 @@
 use std::{
   cmp::Reverse,
   collections::{BinaryHeap, HashMap},
-  sync::{Arc, RwLock, atomic::AtomicBool},
+  sync::{Arc, Mutex, RwLock, atomic::AtomicBool},
   time::{Duration, Instant},
 };
 
@@ -244,6 +244,7 @@ pub struct AppHandle {
   timer_tx: flume::Sender<Timer>,
   command_tx: flume::Sender<BridgeCommand>,
   recording_keybind: Arc<AtomicBool>,
+  config_subscribers: Arc<Mutex<Vec<flume::Sender<Config>>>>,
 }
 
 impl AppHandle {
@@ -262,6 +263,7 @@ impl AppHandle {
       timer_tx,
       command_tx,
       recording_keybind: Arc::new(AtomicBool::new(false)),
+      config_subscribers: Arc::default(),
     };
 
     let timer_app = app.clone();
@@ -329,6 +331,32 @@ impl AppHandle {
     if changed {
       self.redraw();
     }
+  }
+
+  /// Changes the config and, if it changed, sends the new config to every subscriber.
+  pub fn set_config(&self, change: impl FnOnce(&mut Config)) -> Config {
+    let (config, changed) = {
+      let mut state = self.shared.write().unwrap();
+      let before = state.config.clone();
+      change(&mut state.config);
+      (state.config.clone(), state.config != before)
+    };
+    if changed {
+      self.redraw();
+      self
+        .config_subscribers
+        .lock()
+        .unwrap()
+        .retain(|subscriber| subscriber.send(config.clone()).is_ok());
+    }
+    config
+  }
+
+  /// Receives every config change made through [`AppHandle::set_config`].
+  pub fn subscribe_config(&self) -> flume::Receiver<Config> {
+    let (tx, rx) = flume::unbounded();
+    self.config_subscribers.lock().unwrap().push(tx);
+    rx
   }
 
   pub fn snapshot(&self) -> AppState {

@@ -16,7 +16,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 url = { workspace = true }
 winit = { workspace = true }
-rdev = { workspace = true }
 
 [lints]
 workspace = true
