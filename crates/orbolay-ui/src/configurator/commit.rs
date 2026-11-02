@@ -38,3 +38,46 @@ pub fn use_setting_text(
 
   text
 }
+
+#[cfg(test)]
+mod tests {
+  use std::cell::RefCell;
+
+  use freya::prelude::*;
+  use freya_testing::launch_test;
+
+  use super::use_setting_text;
+
+  thread_local! {
+    static COMMITS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+    static SHOWN: RefCell<String> = const { RefCell::new(String::new()) };
+  }
+
+  fn app() -> impl IntoElement {
+    let mut saved = use_state(|| "before".to_string());
+    let id = use_a11y();
+    let text = use_setting_text(id, &saved.read(), |text| {
+      COMMITS.with(|commits| commits.borrow_mut().push(text));
+    });
+    use_hook(move || spawn(async move { saved.set("after".into()) }));
+    SHOWN.with(|shown| shown.borrow_mut().clone_from(&text.read()));
+    rect()
+  }
+
+  #[test]
+  fn external_changes_show_up_without_being_committed() {
+    let mut test = launch_test(app);
+    test.sync_and_update();
+    test.poll(
+      std::time::Duration::from_millis(1),
+      std::time::Duration::from_millis(50),
+    );
+    test.sync_and_update();
+
+    assert_eq!(SHOWN.with(|shown| shown.borrow().clone()), "after");
+    assert_eq!(
+      COMMITS.with(|commits| commits.borrow().clone()),
+      Vec::<String>::new()
+    );
+  }
+}

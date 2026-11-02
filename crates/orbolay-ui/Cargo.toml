@@ -17,3 +17,6 @@ winit = { workspace = true }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+freya-testing = { git = "https://github.com/marc2332/freya.git", rev = "efed3a96feb752ae238c81adfc14e7b68ece36ac" }
