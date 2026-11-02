@@ -1,6 +1,6 @@
 use freya::prelude::*;
 
-use crate::{configurator::commit::use_commit_on_blur, util::theme};
+use crate::{configurator::commit::use_setting_text, util::theme};
 
 #[derive(PartialEq, Clone)]
 pub struct ColorPickerControl {
@@ -19,17 +19,10 @@ impl Component for ColorPickerControl {
     let input_id = use_a11y();
     let on_change = self.on_change.clone();
     let value = self.value;
-    let mut hex_value = use_state(|| theme::to_hex(value));
-
-    use_side_effect_with_deps(&value, move |value| {
-      hex_value.set_if_modified(theme::to_hex(*value));
-    });
-    use_commit_on_blur(input_id, hex_value, {
+    let hex_value = use_setting_text(input_id, &theme::to_hex(value), {
       let on_change = on_change.clone();
       move |hex| {
-        if let Some(color) = theme::from_hex(&hex)
-          && color != value
-        {
+        if let Some(color) = theme::from_hex(&hex) {
           on_change.call(color);
         }
       }
