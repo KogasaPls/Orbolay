@@ -1,8 +1,8 @@
-use std::{collections::HashMap, sync::atomic::Ordering};
+use std::sync::atomic::Ordering;
 
 use freya::prelude::*;
 use gumdrop::Options;
-use log::{info, warn};
+use log::warn;
 use orbolay_control::Command;
 use orbolay_core::{
   app_state::{AppHandle, AppState},
@@ -34,9 +34,8 @@ mod window;
 
 static TWEMOJI_FONT: &[u8] = include_bytes!("../assets/fonts/Twemoji.ttf");
 
+/// Set by the build environment, for example `GIT_HASH=$(git rev-parse --short HEAD)`.
 const GIT_HASH: Option<&str> = option_env!("GIT_HASH");
-const APP_NAME: Option<&str> = option_env!("CARGO_PKG_NAME");
-const APP_VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone, Options)]
 #[expect(clippy::struct_excessive_bools, reason = "command-line flags")]
@@ -83,12 +82,10 @@ fn main() {
   if args.version {
     #[expect(clippy::print_stdout, reason = "command-line version output")]
     {
-      println!(
-        "{} version {} (rev {})",
-        APP_NAME.unwrap_or("Unknown"),
-        APP_VERSION.unwrap_or("0.0.0"),
-        GIT_HASH.unwrap_or("unknown")
-      );
+      let rev = GIT_HASH
+        .map(|hash| format!(" (rev {hash})"))
+        .unwrap_or_default();
+      println!("orbolay {}{rev}", env!("CARGO_PKG_VERSION"));
     }
     std::process::exit(0);
   }
@@ -109,7 +106,7 @@ fn main() {
     unsafe { std::env::set_var("FREYA_RENDERER", "software") };
   }
 
-  let wayland_display = std::env::var("WAYLAND_DISPLAY");
+  let wayland_display = std::env::var_os("WAYLAND_DISPLAY");
 
   if config.xwayland {
     unsafe { std::env::set_var("WAYLAND_DISPLAY", "") };
@@ -149,19 +146,13 @@ fn main() {
     std::process::exit(1);
   }
 
-  if !config.xwayland && wayland_display.as_deref().is_ok_and(|d| !d.is_empty()) {
+  if !config.xwayland && wayland_display.as_ref().is_some_and(|d| !d.is_empty()) {
     warn!(
       "XWayland is disabled; the overlay may not stay on top or pass clicks through under Wayland"
     );
   }
 
-  if !args.target.is_empty() {
-    let env = HashMap::from([("WAYLAND_DISPLAY".to_string(), wayland_display.ok())]);
-
-    info!("Launching child process: {:?}", args.target);
-
-    target::launch_target(args.target, Some(env));
-  }
+  target::launch_target(&args.target, wayland_display);
 
   let startup = Startup {
     port: args.port.unwrap_or(config.port),
@@ -229,6 +220,7 @@ struct Startup {
 }
 
 fn app(startup: Startup) -> impl IntoElement {
+  let debug = startup.debug;
   let mut model = use_state(|| AppState::new(startup.config.clone()));
   let mut is_open = use_state(|| false);
   let mut soundboard_open = use_state(|| false);
@@ -242,10 +234,6 @@ fn app(startup: Startup) -> impl IntoElement {
       redraw_tx,
       open_config_tx,
     );
-
-    if !startup.debug {
-      window::set_clickable(false);
-    }
 
     start_background(&app, &startup, commands, toggle_tx);
 
@@ -284,7 +272,7 @@ fn app(startup: Startup) -> impl IntoElement {
     if !open {
       soundboard_open.set_if_modified(false);
     }
-    window::set_clickable(open);
+    window::set_clickable(open || debug);
   });
 
   let state = model.read();
