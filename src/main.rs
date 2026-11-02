@@ -148,6 +148,11 @@ fn main() {
     std::process::exit(1);
   }
 
+  // Write the defaults so later starts are not first runs
+  if first_run && let Err(err) = save_config(&config) {
+    warn!("Failed to save config.json: {err}");
+  }
+
   if !config.xwayland && wayland_display.as_ref().is_some_and(|d| !d.is_empty()) {
     warn!(
       "XWayland is disabled; the overlay may not stay on top or pass clicks through under Wayland"
@@ -431,12 +436,6 @@ fn start_background(
   });
 
   bridge::start(app.clone(), startup.port, commands);
-
-  if startup.first_run
-    && let Err(err) = save_config(&startup.config)
-  {
-    warn!("Failed to save config.json: {err}");
-  }
 
   config_watcher::start(app.clone());
 }
