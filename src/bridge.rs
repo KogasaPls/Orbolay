@@ -1,16 +1,40 @@
 //! The websocket server the `OrbolayBridge` plugin connects to.
 
+use std::time::Duration;
+
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
 use orbolay_core::{
   app_state::AppHandle,
   protocol::{BridgeCommand, BridgeEvent, Notification},
 };
-use tokio::{net::TcpListener, task::JoinHandle};
-use tokio_tungstenite::{accept_async, tungstenite::Message};
+use tokio::{
+  net::{TcpListener, TcpStream},
+  task::JoinHandle,
+};
+use tokio_tungstenite::{
+  WebSocketStream, accept_hdr_async,
+  tungstenite::{
+    Message,
+    handshake::server::{ErrorResponse, Request, Response},
+    http::StatusCode,
+  },
+};
 
-/// Accepts bridge connections on `127.0.0.1:port`. A new connection replaces the previous one,
-/// so commands always reach the most recently connected client.
+type Socket = WebSocketStream<TcpStream>;
+
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Browser origins allowed to connect. Clients that send no `Origin` header are not browser
+/// pages and are allowed too.
+const DISCORD_ORIGINS: [&str; 3] = [
+  "https://discord.com",
+  "https://ptb.discord.com",
+  "https://canary.discord.com",
+];
+
+/// Accepts bridge connections on `127.0.0.1:port`. A connection that completes the handshake
+/// replaces the previous one, so commands always reach the most recently connected client.
 async fn serve(app: AppHandle, port: u16, commands: flume::Receiver<BridgeCommand>) {
   let listener = match TcpListener::bind(("127.0.0.1", port)).await {
     Ok(listener) => listener,
@@ -33,21 +57,30 @@ async fn serve_listener(
   listener: TcpListener,
   commands: flume::Receiver<BridgeCommand>,
 ) {
+  let (handshakes_tx, handshakes) = flume::unbounded::<Socket>();
   let mut current: Option<JoinHandle<()>> = None;
   loop {
     let connected = current.as_ref().is_some_and(|task| !task.is_finished());
     tokio::select! {
       accepted = listener.accept() => match accepted {
         Ok((stream, peer)) => {
-          info!("Bridge connected from {peer}");
-          if let Some(previous) = current.take().filter(|task| !task.is_finished()) {
-            previous.abort();
-            app.apply(BridgeEvent::ChannelLeft);
-          }
-          current = Some(tokio::spawn(connection(app.clone(), stream, commands.clone())));
+          let handshakes_tx = handshakes_tx.clone();
+          tokio::spawn(async move {
+            if let Some(socket) = handshake(stream).await {
+              info!("Bridge connected from {peer}");
+              let _ = handshakes_tx.send(socket);
+            }
+          });
         }
         Err(e) => warn!("Failed to accept a bridge connection: {e}"),
       },
+      Ok(socket) = handshakes.recv_async() => {
+        if let Some(previous) = current.take().filter(|task| !task.is_finished()) {
+          previous.abort();
+          app.apply(BridgeEvent::ChannelLeft);
+        }
+        current = Some(tokio::spawn(connection(app.clone(), socket, commands.clone())));
+      }
       () = async { if let Some(task) = current.as_mut() { let _ = task.await; } }, if connected => {
         current = None;
       }
@@ -59,18 +92,38 @@ async fn serve_listener(
   }
 }
 
-async fn connection(
-  app: AppHandle,
-  stream: tokio::net::TcpStream,
-  commands: flume::Receiver<BridgeCommand>,
-) {
-  let socket = match accept_async(stream).await {
-    Ok(socket) => socket,
-    Err(e) => {
-      warn!("Bridge handshake failed: {e}");
-      return;
-    }
+#[expect(
+  clippy::result_large_err,
+  reason = "tungstenite's handshake callback returns this type"
+)]
+fn check_origin(request: &Request, response: Response) -> Result<Response, ErrorResponse> {
+  let Some(origin) = request.headers().get("origin") else {
+    return Ok(response);
   };
+  if DISCORD_ORIGINS.iter().any(|allowed| origin == allowed) {
+    return Ok(response);
+  }
+  warn!("Refusing a bridge connection from origin {origin:?}");
+  let mut refused = ErrorResponse::new(Some("origin not allowed".into()));
+  *refused.status_mut() = StatusCode::FORBIDDEN;
+  Err(refused)
+}
+
+async fn handshake(stream: TcpStream) -> Option<Socket> {
+  match tokio::time::timeout(HANDSHAKE_TIMEOUT, accept_hdr_async(stream, check_origin)).await {
+    Ok(Ok(socket)) => Some(socket),
+    Ok(Err(e)) => {
+      warn!("Bridge handshake failed: {e}");
+      None
+    }
+    Err(_) => {
+      warn!("Bridge handshake timed out");
+      None
+    }
+  }
+}
+
+async fn connection(app: AppHandle, socket: Socket, commands: flume::Receiver<BridgeCommand>) {
   let (mut sink, mut source) = socket.split();
 
   loop {
@@ -110,6 +163,7 @@ pub fn start(app: AppHandle, port: u16, commands: flume::Receiver<BridgeCommand>
     .spawn(move || {
       match tokio::runtime::Builder::new_current_thread()
         .enable_io()
+        .enable_time()
         .build()
       {
         Ok(runtime) => runtime.block_on(serve(app, port, commands)),
@@ -132,7 +186,10 @@ mod tests {
   };
   use serde_json::json;
   use tokio::net::TcpListener;
-  use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
+  use tokio_tungstenite::{
+    MaybeTlsStream, WebSocketStream, connect_async,
+    tungstenite::{Message, client::IntoClientRequest},
+  };
 
   use super::serve_listener;
 
@@ -235,6 +292,39 @@ mod tests {
 
     harness.app.send(BridgeCommand::ToggleDeaf);
     assert_eq!(next_text(&mut second).await, json!({"cmd": "TOGGLE_DEAF"}));
+  }
+
+  #[tokio::test]
+  async fn browser_pages_and_silent_sockets_cannot_replace_the_bridge() {
+    let harness = start().await;
+    let mut client = connect(&harness.url).await;
+    send(&mut client, joined()).await;
+    eventually(&harness.app, |state| !state.members().is_empty()).await;
+
+    let mut page = harness.url.as_str().into_client_request().unwrap();
+    page
+      .headers_mut()
+      .insert("origin", "https://example.com".parse().unwrap());
+    assert!(connect_async(page).await.is_err());
+    let _silent = tokio::net::TcpStream::connect(harness.url.trim_start_matches("ws://"))
+      .await
+      .unwrap();
+
+    harness.app.send(BridgeCommand::ToggleMute);
+    assert_eq!(next_text(&mut client).await, json!({"cmd": "TOGGLE_MUTE"}));
+    assert!(harness.app.read(|state| !state.members().is_empty()));
+  }
+
+  #[tokio::test]
+  async fn discord_origins_are_accepted() {
+    let harness = start().await;
+    let mut request = harness.url.as_str().into_client_request().unwrap();
+    request
+      .headers_mut()
+      .insert("origin", "https://canary.discord.com".parse().unwrap());
+    let mut client = connect_async(request).await.unwrap().0;
+    send(&mut client, joined()).await;
+    eventually(&harness.app, |state| !state.members().is_empty()).await;
   }
 
   #[tokio::test]
