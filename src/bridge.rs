@@ -182,7 +182,8 @@ mod tests {
   fn joined() -> serde_json::Value {
     json!({
       "cmd": "CHANNEL_JOINED",
-      "states": [{ "userId": "peer", "username": "Peer", "channelId": "voice" }]
+      "channelId": "voice",
+    "states": [{ "userId": "peer", "username": "Peer", "channelId": "voice" }]
     })
   }
 
@@ -195,7 +196,7 @@ mod tests {
     send(&mut client, json!({"cmd": "UNKNOWN"})).await;
     send(&mut client, joined()).await;
 
-    eventually(&harness.app, |state| state.voice_users.len() == 1).await;
+    eventually(&harness.app, |state| state.members().len() == 1).await;
   }
 
   #[tokio::test]
@@ -203,7 +204,7 @@ mod tests {
     let harness = start().await;
     let mut client = connect(&harness.url).await;
     send(&mut client, joined()).await;
-    eventually(&harness.app, |state| !state.voice_users.is_empty()).await;
+    eventually(&harness.app, |state| !state.members().is_empty()).await;
 
     harness.app.send(BridgeCommand::ToggleMute);
     assert_eq!(next_text(&mut client).await, json!({"cmd": "TOGGLE_MUTE"}));
@@ -214,10 +215,10 @@ mod tests {
     let harness = start().await;
     let mut client = connect(&harness.url).await;
     send(&mut client, joined()).await;
-    eventually(&harness.app, |state| !state.voice_users.is_empty()).await;
+    eventually(&harness.app, |state| !state.members().is_empty()).await;
 
     client.close(None).await.unwrap();
-    eventually(&harness.app, |state| state.voice_users.is_empty()).await;
+    eventually(&harness.app, |state| state.members().is_empty()).await;
   }
 
   #[tokio::test]
@@ -225,12 +226,12 @@ mod tests {
     let harness = start().await;
     let mut first = connect(&harness.url).await;
     send(&mut first, joined()).await;
-    eventually(&harness.app, |state| !state.voice_users.is_empty()).await;
+    eventually(&harness.app, |state| !state.members().is_empty()).await;
 
     let mut second = connect(&harness.url).await;
-    eventually(&harness.app, |state| state.voice_users.is_empty()).await;
+    eventually(&harness.app, |state| state.members().is_empty()).await;
     send(&mut second, joined()).await;
-    eventually(&harness.app, |state| !state.voice_users.is_empty()).await;
+    eventually(&harness.app, |state| !state.members().is_empty()).await;
 
     harness.app.send(BridgeCommand::ToggleDeaf);
     assert_eq!(next_text(&mut second).await, json!({"cmd": "TOGGLE_DEAF"}));
@@ -241,16 +242,16 @@ mod tests {
     let harness = start().await;
     let mut first = connect(&harness.url).await;
     send(&mut first, joined()).await;
-    eventually(&harness.app, |state| !state.voice_users.is_empty()).await;
+    eventually(&harness.app, |state| !state.members().is_empty()).await;
     first.close(None).await.unwrap();
-    eventually(&harness.app, |state| state.voice_users.is_empty()).await;
+    eventually(&harness.app, |state| state.members().is_empty()).await;
 
     harness.app.send(BridgeCommand::Disconnect);
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     let mut second = connect(&harness.url).await;
     send(&mut second, joined()).await;
-    eventually(&harness.app, |state| !state.voice_users.is_empty()).await;
+    eventually(&harness.app, |state| !state.members().is_empty()).await;
     harness.app.send(BridgeCommand::ToggleMute);
     assert_eq!(next_text(&mut second).await, json!({"cmd": "TOGGLE_MUTE"}));
   }

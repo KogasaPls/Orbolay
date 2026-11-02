@@ -296,11 +296,7 @@ fn app(startup: Startup) -> impl IntoElement {
     theme::from_tuple(config.text_color),
     config.border_radius,
   );
-  let current_user = state
-    .voice_users
-    .iter()
-    .find(|u| u.id == state.user_id)
-    .cloned();
+  let current_user = state.me().cloned();
 
   let settings_alignment = Corner::unused(&[config.user_alignment, config.message_alignment])
     .unwrap_or(Corner::BottomLeft);
@@ -313,7 +309,7 @@ fn app(startup: Startup) -> impl IntoElement {
 
   let voice = VoiceSection {
     app: app.clone(),
-    voice_users: state.voice_users.clone(),
+    voice_users: state.members().to_vec(),
     self_id: state.user_id.clone(),
     is_open: open,
     is_censor: state.is_censor,
@@ -349,7 +345,7 @@ fn app(startup: Startup) -> impl IntoElement {
   let soundboard = Soundboard {
     app: app.clone(),
     soundboard: state.soundboard.clone(),
-    current_guild_id: state.current_guild_id.clone(),
+    current_guild_id: state.call.as_ref().and_then(|call| call.guild_id.clone()),
     has_nitro: state.has_nitro,
     theme,
     ui_scale,

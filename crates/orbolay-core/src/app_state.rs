@@ -16,10 +16,11 @@ pub const NOTIFICATION_TIMEOUT: Duration = Duration::from_secs(5);
 /// How many notifications are shown at once.
 pub const MAX_NOTIFICATIONS: usize = 3;
 
-/// Soundboard sounds grouped by guild ID (`""` for default sounds), with guild display names.
+/// Soundboard sounds grouped by guild ID (`None` for Discord's default sounds), with guild
+/// display names.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Soundboard {
-  pub sounds: HashMap<String, Vec<SoundboardSoundPayload>>,
+  pub sounds: HashMap<Option<String>, Vec<SoundboardSoundPayload>>,
   pub guild_names: HashMap<String, String>,
 }
 
@@ -30,16 +31,24 @@ pub struct Shown {
   pub expires_at: Instant,
 }
 
+/// The voice channel the user is in.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Call {
+  pub channel_id: String,
+  /// `None` for direct message and group calls.
+  pub guild_id: Option<String>,
+  pub members: Vec<User>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AppState {
   pub config: Config,
-  pub user_id: String,
+  /// The Discord user running the bridge, known once it registers.
+  pub user_id: Option<String>,
   /// Nitro lets the soundboard play sounds from other servers.
   pub has_nitro: bool,
-  pub current_channel: String,
-  pub current_guild_id: String,
+  pub call: Option<Call>,
   pub is_censor: bool,
-  pub voice_users: Vec<User>,
   pub messages: Vec<Shown>,
   pub soundboard: Arc<Soundboard>,
 }
@@ -68,6 +77,17 @@ impl AppState {
     }
   }
 
+  /// Members of the current call, empty outside a call.
+  pub fn members(&self) -> &[User] {
+    self.call.as_ref().map_or(&[], |call| &call.members)
+  }
+
+  /// The user running the bridge, while they are in a call.
+  pub fn me(&self) -> Option<&User> {
+    let user_id = self.user_id.as_deref()?;
+    self.members().iter().find(|user| user.id == user_id)
+  }
+
   /// Applies a bridge event and returns the timer it needs, if any.
   pub fn apply(&mut self, event: BridgeEvent, now: Instant) -> Option<Timer> {
     match event {
@@ -75,7 +95,7 @@ impl AppState {
         user_id,
         premium_type,
       } => {
-        self.user_id = user_id;
+        self.user_id = Some(user_id);
         if let Some(premium_type) = premium_type {
           self.has_nitro = premium_type != 0;
         }
@@ -85,25 +105,17 @@ impl AppState {
         guild_id,
         channel_id,
       } => {
-        let own_channel = || {
-          states
-            .iter()
-            .find(|state| state.user_id == self.user_id)
-            .and_then(|own| own.channel_id.clone())
-        };
-        self.current_channel = channel_id.or_else(own_channel).unwrap_or_default();
-        self.current_guild_id = guild_id.unwrap_or_default();
-        self.voice_users = states.into_iter().map(User::joined).collect();
+        self.call = Some(Call {
+          channel_id,
+          guild_id,
+          members: states.into_iter().map(User::joined).collect(),
+        });
       }
       BridgeEvent::VoiceStateUpdate { state } => self.update_member(state),
       BridgeEvent::Speaking { user_id, speaking } => {
         return self.set_speaking(&user_id, speaking, now);
       }
-      BridgeEvent::ChannelLeft => {
-        self.voice_users.clear();
-        self.current_channel.clear();
-        self.current_guild_id.clear();
-      }
+      BridgeEvent::ChannelLeft => self.call = None,
       BridgeEvent::MessageNotification { mut message } => {
         message.icon = message.icon.replace(".webp", ".png");
         return Some(self.notify(message, now));
@@ -113,10 +125,10 @@ impl AppState {
         sounds,
         guild_names,
       } => {
-        let mut by_guild: HashMap<String, Vec<_>> = HashMap::new();
+        let mut by_guild: HashMap<Option<String>, Vec<_>> = HashMap::new();
         for sound in sounds {
           by_guild
-            .entry(sound.guild_id.clone().unwrap_or_default())
+            .entry(sound.guild_id.clone())
             .or_default()
             .push(sound);
         }
@@ -129,22 +141,28 @@ impl AppState {
   }
 
   fn update_member(&mut self, state: MemberState) {
-    if state.channel_id.as_deref() != Some(self.current_channel.as_str()) {
-      self.voice_users.retain(|user| user.id != state.user_id);
+    let Some(call) = &mut self.call else { return };
+    if state.channel_id.as_ref() != Some(&call.channel_id) {
+      call.members.retain(|user| user.id != state.user_id);
       return;
     }
-    match self.voice_users.iter_mut().find(|u| u.id == state.user_id) {
+    match call.members.iter_mut().find(|u| u.id == state.user_id) {
       Some(user) => user.update(state),
-      None if state.username.is_some() => self.voice_users.push(User::joined(state)),
+      None if state.username.is_some() => call.members.push(User::joined(state)),
       None => {}
     }
+  }
+
+  fn member_mut(&mut self, user_id: &str) -> Option<&mut User> {
+    let call = self.call.as_mut()?;
+    call.members.iter_mut().find(|user| user.id == user_id)
   }
 
   /// Starts or stops a member speaking. Stopping keeps them shown as speaking for the grace
   /// period, ended by the returned timer.
   fn set_speaking(&mut self, user_id: &str, speaking: bool, now: Instant) -> Option<Timer> {
     let grace = Duration::from_millis(u64::from(self.config.speaking_grace_ms));
-    let user = self.voice_users.iter_mut().find(|u| u.id == user_id)?;
+    let user = self.member_mut(user_id)?;
     match (speaking, user.speech) {
       (true, _) => {
         user.speech = Speech::Speaking;
@@ -188,9 +206,8 @@ impl AppState {
     match &timer.kind {
       TimerKind::GraceEnd { user_id } => {
         let Some(user) = self
-          .voice_users
-          .iter_mut()
-          .find(|user| user.id == *user_id && user.speech == Speech::Grace { until: timer.at })
+          .member_mut(user_id)
+          .filter(|user| user.speech == Speech::Grace { until: timer.at })
         else {
           return false;
         };
@@ -405,7 +422,7 @@ mod tests {
       BridgeEvent::ChannelJoined {
         states: vec![member("me"), member("peer")],
         guild_id: Some("guild".into()),
-        channel_id: None,
+        channel_id: "voice".into(),
       },
       now,
     );
@@ -414,7 +431,7 @@ mod tests {
 
   fn voice_state(state: &AppState, user_id: &str) -> Option<UserVoiceState> {
     state
-      .voice_users
+      .members()
       .iter()
       .find(|u| u.id == user_id)
       .map(User::voice_state)
@@ -432,9 +449,11 @@ mod tests {
   #[test]
   fn joining_records_the_channel_guild_and_members() {
     let state = joined();
-    assert_eq!(state.current_channel, "voice");
-    assert_eq!(state.current_guild_id, "guild");
-    assert_eq!(state.voice_users.len(), 2);
+    let call = state.call.as_ref().unwrap();
+    assert_eq!(call.channel_id, "voice");
+    assert_eq!(call.guild_id.as_deref(), Some("guild"));
+    assert_eq!(call.members.len(), 2);
+    assert_eq!(state.me().map(|me| me.id.as_str()), Some("me"));
   }
 
   #[test]
@@ -445,11 +464,10 @@ mod tests {
       BridgeEvent::ChannelJoined {
         states: vec![member("peer")],
         guild_id: None,
-        channel_id: Some("voice".into()),
+        channel_id: "voice".into(),
       },
       now,
     );
-    assert_eq!(state.current_channel, "voice");
     state.apply(update(member("peer")), now);
     assert!(voice_state(&state, "peer").is_some());
   }
@@ -595,7 +613,7 @@ mod tests {
       }),
       Instant::now(),
     );
-    assert!(state.voice_users.iter().any(|u| u.id == "peer" && u.camera));
+    assert!(state.members().iter().any(|u| u.id == "peer" && u.camera));
   }
 
   #[test]
@@ -608,7 +626,7 @@ mod tests {
       }),
       Instant::now(),
     );
-    let peer = state.voice_users.iter().find(|u| u.id == "peer").unwrap();
+    let peer = state.members().iter().find(|u| u.id == "peer").unwrap();
     assert!((peer.volume - 150.).abs() < f32::EPSILON);
   }
 
@@ -653,8 +671,8 @@ mod tests {
   fn leaving_the_channel_clears_members() {
     let mut state = joined();
     state.apply(BridgeEvent::ChannelLeft, Instant::now());
-    assert_eq!(state.voice_users, Vec::new());
-    assert_eq!(state.current_channel, "");
+    assert_eq!(state.call, None);
+    assert_eq!(state.members(), []);
   }
 
   #[test]
@@ -697,8 +715,8 @@ mod tests {
       },
       now,
     );
-    assert_eq!(state.soundboard.sounds[""].len(), 1);
-    assert_eq!(state.soundboard.sounds["g"][0].sound_id, "c");
+    assert_eq!(state.soundboard.sounds[&None].len(), 1);
+    assert_eq!(state.soundboard.sounds[&Some("g".into())][0].sound_id, "c");
     assert_eq!(state.soundboard.guild_names["g"], "Guild");
   }
 }

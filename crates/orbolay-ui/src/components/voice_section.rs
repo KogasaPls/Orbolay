@@ -17,7 +17,7 @@ use crate::{
 pub struct VoiceSection {
   pub app: AppHandle,
   pub voice_users: Vec<User>,
-  pub self_id: String,
+  pub self_id: Option<String>,
   pub is_open: bool,
   pub is_censor: bool,
   pub user_alignment: Corner,
@@ -81,7 +81,7 @@ impl Component for VoiceSection {
             u.name = censor(&u.name);
           }
 
-          let is_self = self.self_id == u.id;
+          let is_self = self.self_id.as_deref() == Some(u.id.as_str());
           let faded = !self.is_open
             && u.voice_state() != UserVoiceState::Speaking
             && (dimmed || self.display_voice_members == DisplayVoiceMembers::AlwaysSemiTransparent);

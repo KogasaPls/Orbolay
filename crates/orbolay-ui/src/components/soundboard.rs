@@ -11,24 +11,19 @@ use crate::util::{
   theme::Theme,
 };
 
-fn guild_order(guild_id: &str, current: &str) -> u8 {
-  if !current.is_empty() && guild_id == current {
-    0
-  } else if guild_id.is_empty() {
-    1
-  } else {
-    2
+/// The current server's sounds first, then Discord's default sounds, then other servers'.
+fn guild_order(guild_id: Option<&str>, current: Option<&str>) -> u8 {
+  match guild_id {
+    Some(_) if guild_id == current => 0,
+    None => 1,
+    Some(_) => 2,
   }
 }
 
 /// Sounds from other servers need Nitro.
-fn usable(sound: &SoundboardSoundPayload, has_nitro: bool, current_guild_id: &str) -> bool {
+fn usable(sound: &SoundboardSoundPayload, has_nitro: bool, current_guild_id: Option<&str>) -> bool {
   sound.available
-    && (has_nitro
-      || sound
-        .guild_id
-        .as_deref()
-        .is_none_or(|guild_id| guild_id == current_guild_id))
+    && (has_nitro || sound.guild_id.is_none() || sound.guild_id.as_deref() == current_guild_id)
 }
 
 #[derive(PartialEq)]
@@ -134,7 +129,7 @@ impl Component for GuildLabel {
 pub struct Soundboard {
   pub app: AppHandle,
   pub soundboard: Arc<SoundboardState>,
-  pub current_guild_id: String,
+  pub current_guild_id: Option<String>,
   pub has_nitro: bool,
   pub theme: Theme,
   pub ui_scale: UiScale,
@@ -143,12 +138,12 @@ pub struct Soundboard {
 impl Component for Soundboard {
   fn render(&self) -> impl IntoElement {
     let scale = self.ui_scale;
-    let current_guild_id = &self.current_guild_id;
+    let current_guild_id = self.current_guild_id.as_deref();
 
     let mut guilds: Vec<_> = self.soundboard.sounds.iter().collect();
     guilds.sort_by(|(a, _), (b, _)| {
-      guild_order(a, current_guild_id)
-        .cmp(&guild_order(b, current_guild_id))
+      guild_order(a.as_deref(), current_guild_id)
+        .cmp(&guild_order(b.as_deref(), current_guild_id))
         .then(b.cmp(a))
     });
 
@@ -178,15 +173,14 @@ impl Component for Soundboard {
         .width(Size::fill())
         .padding(Gaps::new_all(16.).scaled(scale)),
       |col, (guild_id, sounds)| {
-        let name = if guild_id.is_empty() {
-          "Default".to_string()
-        } else {
-          self
+        let name = match guild_id {
+          None => "Default".to_string(),
+          Some(guild_id) => self
             .soundboard
             .guild_names
             .get(guild_id)
             .cloned()
-            .unwrap_or_else(|| guild_id.clone())
+            .unwrap_or_else(|| guild_id.clone()),
         };
         let buttons = sounds.iter().fold(
           rect()
@@ -243,17 +237,23 @@ mod tests {
 
   #[test]
   fn other_servers_sounds_need_nitro() {
-    assert!(usable(&sound(None, true), false, "here"));
-    assert!(usable(&sound(Some("here"), true), false, "here"));
-    assert!(!usable(&sound(Some("elsewhere"), true), false, "here"));
-    assert!(usable(&sound(Some("elsewhere"), true), true, "here"));
-    assert!(!usable(&sound(Some("here"), false), true, "here"));
+    assert!(usable(&sound(None, true), false, Some("here")));
+    assert!(usable(&sound(Some("here"), true), false, Some("here")));
+    assert!(!usable(
+      &sound(Some("elsewhere"), true),
+      false,
+      Some("here")
+    ));
+    assert!(usable(&sound(Some("elsewhere"), true), true, Some("here")));
+    assert!(!usable(&sound(Some("here"), false), true, Some("here")));
   }
 
   #[test]
   fn the_current_server_sorts_first_then_default_sounds() {
-    assert!(guild_order("here", "here") < guild_order("", "here"));
-    assert!(guild_order("", "here") < guild_order("elsewhere", "here"));
-    assert_eq!(guild_order("", ""), guild_order("", "here"));
+    let here = Some("here");
+    assert!(guild_order(here, here) < guild_order(None, here));
+    assert!(guild_order(None, here) < guild_order(Some("elsewhere"), here));
+    assert_eq!(guild_order(None, None), guild_order(None, here));
+    assert_eq!(guild_order(Some("elsewhere"), None), 2);
   }
 }

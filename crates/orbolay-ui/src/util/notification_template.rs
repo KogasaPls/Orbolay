@@ -34,26 +34,26 @@ pub fn render_notification(
   theme: &Theme,
 ) -> String {
   let icon = icon_url(&notification.icon);
-  let mut classes = Vec::new();
-  if icon.is_empty() {
-    classes.push("no-icon");
-  }
+  let classes: &[&str] = if icon.is_none() { &["no-icon"] } else { &[] };
 
   fill(
-    &template.render_root(&classes, Vec::new(), theme),
+    &template.render_root(classes, Vec::new(), theme),
     &[
       (TITLE_TOKEN, &escape_html(&notification.title)),
       (BODY_TOKEN, &escape_html(&strip(&notification.body))),
-      (ICON_TOKEN, &escape_html(&icon)),
+      (
+        ICON_TOKEN,
+        &escape_html(icon.as_deref().unwrap_or_default()),
+      ),
       (ACTIONS_TOKEN, ""),
     ],
   )
 }
 
 /// Discord gives us both full URLs and relative URLs, this handles those
-fn icon_url(icon: &str) -> String {
+fn icon_url(icon: &str) -> Option<String> {
   if icon.trim().is_empty() {
-    return String::new();
+    return None;
   }
 
   url::Url::parse("https://discord.com")
@@ -61,7 +61,6 @@ fn icon_url(icon: &str) -> String {
     .ok()
     .filter(|url| matches!(url.scheme(), "http" | "https") && url.has_host())
     .map(String::from)
-    .unwrap_or_default()
 }
 
 #[cfg(test)]

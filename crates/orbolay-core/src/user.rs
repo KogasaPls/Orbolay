@@ -17,7 +17,8 @@ pub enum UserVoiceState {
 pub struct User {
   pub name: String,
   pub id: String,
-  pub avatar: String,
+  /// Discord avatar hash; `None` uses the default avatar.
+  pub avatar: Option<String>,
   pub muted: bool,
   pub deafened: bool,
   pub speech: Speech,
@@ -59,7 +60,7 @@ impl User {
     Self {
       name: state.username.unwrap_or_else(|| "Unknown".to_owned()),
       id: state.user_id,
-      avatar: state.avatar_url.unwrap_or_default(),
+      avatar: state.avatar_url,
       muted: state.mute,
       deafened: state.deaf,
       speech: Speech::Silent,
@@ -75,8 +76,8 @@ impl User {
     if let Some(name) = state.username {
       self.name = name;
     }
-    if let Some(avatar) = state.avatar_url {
-      self.avatar = avatar;
+    if state.avatar_url.is_some() {
+      self.avatar = state.avatar_url;
     }
     if let Some(volume) = state.volume {
       self.volume = volume;

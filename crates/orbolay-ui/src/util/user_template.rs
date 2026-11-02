@@ -116,7 +116,7 @@ fn user_template_classes(user: &User, is_self: bool) -> Vec<&'static str> {
     classes.push("camera");
   }
 
-  if user.avatar.is_empty() {
+  if user.avatar.is_none() {
     classes.push("no-avatar");
   }
 
@@ -128,14 +128,17 @@ fn user_template_classes(user: &User, is_self: bool) -> Vec<&'static str> {
 }
 
 fn avatar_url(user: &User) -> String {
-  if user.avatar.is_empty() {
-    let index = user.id.parse::<u64>().map_or(0, |id| (id >> 22) % 6);
-    return format!("https://cdn.discordapp.com/embed/avatars/{index}.png");
-  }
-
-  format!(
-    "https://cdn.discordapp.com/avatars/{}/{}.png?size=160",
-    user.id, user.avatar
+  user.avatar.as_ref().map_or_else(
+    || {
+      let index = user.id.parse::<u64>().map_or(0, |id| (id >> 22) % 6);
+      format!("https://cdn.discordapp.com/embed/avatars/{index}.png")
+    },
+    |hash| {
+      format!(
+        "https://cdn.discordapp.com/avatars/{}/{hash}.png?size=160",
+        user.id
+      )
+    },
   )
 }
 
@@ -147,11 +150,11 @@ mod tests {
   use super::{load_user_template, render_user};
   use crate::util::theme::Theme;
 
-  fn user(avatar: &str, muted: bool) -> User {
+  fn user(avatar: Option<&str>, muted: bool) -> User {
     User {
       name: "<b>Name</b>".into(),
       id: "175928847299117063".into(),
-      avatar: avatar.into(),
+      avatar: avatar.map(Into::into),
       muted,
       deafened: false,
       speech: Speech::Silent,
@@ -168,7 +171,7 @@ mod tests {
 
   #[test]
   fn builtin_template_renders_state_classes_and_tokens() {
-    let html = render(&user("abc", true), true, true);
+    let html = render(&user(Some("abc"), true), true, true);
     assert!(
       html.contains(r#"class="muted streaming self right""#),
       "{html}"
@@ -185,7 +188,7 @@ mod tests {
 
   #[test]
   fn names_cannot_inject_tokens() {
-    let mut member = user("abc", false);
+    let mut member = user(Some("abc"), false);
     member.name = "{{muted-icon}}".into();
     let html = render(&member, false, false);
     assert!(html.contains("{{muted-icon}}"));
@@ -194,7 +197,7 @@ mod tests {
 
   #[test]
   fn missing_avatar_uses_the_default_avatar_for_the_user_id() {
-    let html = render(&user("", false), false, false);
+    let html = render(&user(None, false), false, false);
     assert!(html.contains(r#"class="streaming no-avatar""#));
     assert!(html.contains("https://cdn.discordapp.com/embed/avatars/"));
   }
