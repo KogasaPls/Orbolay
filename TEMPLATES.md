@@ -76,6 +76,7 @@ required `id` attribute.
 ### Users
 
 * `speaking` - the user is speaking
+* `soundboard` - the user just played a soundboard sound (shown for 3 seconds)
 * `muted` - the user is muted
 * `deafened` - the user is deafened
 * `streaming` - the user is streaming

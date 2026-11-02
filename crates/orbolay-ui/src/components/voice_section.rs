@@ -46,7 +46,9 @@ impl Component for VoiceSection {
       .iter()
       .filter(|user| match self.display_voice_members {
         DisplayVoiceMembers::Always | DisplayVoiceMembers::AlwaysSemiTransparent => true,
-        DisplayVoiceMembers::WhenSpeaking => user.speech != Speech::Silent || self.is_open,
+        DisplayVoiceMembers::WhenSpeaking => {
+          user.speech != Speech::Silent || user.playing_sound() || self.is_open
+        }
       });
 
     let now = Instant::now();
@@ -79,6 +81,7 @@ impl Component for VoiceSection {
           let is_self = self.self_id.as_deref() == Some(u.id.as_str());
           let faded = !self.is_open
             && u.voice_state() != UserVoiceState::Speaking
+            && !u.playing_sound()
             && (dimmed || self.display_voice_members == DisplayVoiceMembers::AlwaysSemiTransparent);
 
           let row: Element = UserRow {

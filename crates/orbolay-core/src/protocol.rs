@@ -51,6 +51,10 @@ pub enum BridgeEvent {
     user_id: String,
     speaking: bool,
   },
+  /// A member played a soundboard sound in the current channel.
+  SoundboardPlayed {
+    user_id: String,
+  },
   ChannelLeft,
   MessageNotification {
     message: Notification,
@@ -130,6 +134,16 @@ mod tests {
       BridgeEvent::Speaking {
         user_id: "1".into(),
         speaking: true
+      }
+    );
+  }
+
+  #[test]
+  fn soundboard_played_names_the_member() {
+    assert_eq!(
+      event(json!({"cmd": "SOUNDBOARD_PLAYED", "userId": "1"})),
+      BridgeEvent::SoundboardPlayed {
+        user_id: "1".into()
       }
     );
   }

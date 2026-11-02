@@ -22,6 +22,8 @@ pub struct User {
   pub muted: bool,
   pub deafened: bool,
   pub speech: Speech,
+  /// Until when the member is shown as playing a soundboard sound.
+  pub sound_until: Option<Instant>,
   pub streaming: bool,
   pub camera: bool,
   pub volume: f32,
@@ -50,6 +52,10 @@ impl User {
       UserVoiceState::NotSpeaking
     }
   }
+
+  pub const fn playing_sound(&self) -> bool {
+    self.sound_until.is_some()
+  }
 }
 
 use crate::protocol::MemberState;
@@ -71,6 +77,7 @@ impl User {
       muted: state.mute,
       deafened: state.deaf,
       speech: Speech::Silent,
+      sound_until: None,
       streaming: state.streaming,
       camera: state.camera,
       volume: state.volume.map_or(100., local_volume),
