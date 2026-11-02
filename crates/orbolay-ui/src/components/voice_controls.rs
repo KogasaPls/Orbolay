@@ -1,9 +1,12 @@
 use freya::prelude::*;
 use orbolay_core::{app_state::AppHandle, protocol::BridgeCommand, user::User};
 
-use crate::util::{
-  scale::{GapsScaleExt, UiScale},
-  theme::{self, Theme},
+use crate::{
+  util::{
+    scale::{GapsScaleExt, UiScale},
+    theme::{self, Theme},
+  },
+  view::OverlayView,
 };
 
 static DEAFENED_SVG: &[u8] = include_bytes!("../../../../assets/deafened.svg");
@@ -69,7 +72,7 @@ impl Component for ControlButton {
 pub struct VoiceControls {
   pub user: User,
   pub app: AppHandle,
-  pub soundboard_open: State<bool>,
+  pub view: State<OverlayView>,
   pub theme: Theme,
   pub ui_scale: UiScale,
 }
@@ -81,7 +84,7 @@ impl Component for VoiceControls {
       let app = self.app.clone();
       (move |()| app.send(command.clone())).into()
     };
-    let mut soundboard_open = self.soundboard_open;
+    let mut view = self.view;
     let is_muted = self.user.muted;
     let is_deafened = self.user.deafened;
     let is_streaming = self.user.streaming;
@@ -121,8 +124,8 @@ impl Component for VoiceControls {
         icon: SOUNDBOARD_SVG,
         is_red: false,
         on_click: (move |()| {
-          let is_open = *soundboard_open.read();
-          soundboard_open.set(!is_open);
+          let next = view().soundboard_toggled();
+          view.set(next);
         })
         .into(),
         theme: self.theme,

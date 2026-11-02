@@ -12,6 +12,7 @@ use orbolay_ui::{
   components::{MessagesSection, SettingsButton, Soundboard, VoiceControls, VoiceSection},
   open_configurator, open_configurator_standalone, populate_monitor_cache,
   util::{scale::UiScale, theme},
+  view::OverlayView,
 };
 use winit::{
   platform::{
@@ -230,8 +231,7 @@ struct Startup {
 fn app(startup: Startup) -> impl IntoElement {
   let debug = startup.debug;
   let mut model = use_state(|| AppState::new(startup.config.clone()));
-  let mut is_open = use_state(|| false);
-  let mut soundboard_open = use_state(|| false);
+  let mut view = use_state(OverlayView::default);
 
   let app = use_hook(move || {
     let (redraw_tx, redraw_rx) = flume::bounded(1);
@@ -253,8 +253,8 @@ fn app(startup: Startup) -> impl IntoElement {
     spawn_in_window(async move {
       while toggle_rx.recv_async().await.is_ok() {
         if !recording.load(Ordering::Relaxed) {
-          let open = !is_open();
-          is_open.set(open);
+          let next = view().toggled();
+          view.set(next);
         }
       }
     });
@@ -283,18 +283,13 @@ fn app(startup: Startup) -> impl IntoElement {
     app
   });
 
-  // Make the window click-through while closed, and close the soundboard with it
-  use_side_effect(move || {
-    let open = is_open();
-    if !open {
-      soundboard_open.set_if_modified(false);
-    }
-    window::set_clickable(open || debug);
-  });
+  // Make the window click-through while closed
+  use_side_effect(move || window::set_clickable(view().is_open() || debug));
 
   let state = model.read();
   let config = &state.config;
-  let open = is_open();
+  let open = view().is_open();
+  let soundboard_open = view() == OverlayView::Soundboard;
   let ui_scale = UiScale::new(config.ui_scale);
   let theme = theme::Theme::from_values(
     theme::from_tuple(config.accent),
@@ -311,7 +306,7 @@ fn app(startup: Startup) -> impl IntoElement {
     .unwrap_or(Corner::BottomLeft);
   let settings_app = app.clone();
   let open_settings: EventHandler<()> = (move |()| {
-    is_open.set(false);
+    view.set(OverlayView::Closed);
     open_configurator(&settings_app);
   })
   .into();
@@ -371,7 +366,7 @@ fn app(startup: Startup) -> impl IntoElement {
         })
         .width(Size::fill())
         .height(Size::fill())
-        .on_press(move |_| is_open.set(false)),
+        .on_press(move |_| view.set(OverlayView::Closed)),
     )
     .child(voice)
     .maybe_child(messages)
@@ -379,13 +374,13 @@ fn app(startup: Startup) -> impl IntoElement {
     .maybe(open, |el| {
       el
         // Transparent backdrop that catches clicks outside the popup to dismiss it
-        .maybe(soundboard_open(), |el| {
+        .maybe(soundboard_open, |el| {
           el.child(
             rect()
               .position(Position::new_absolute().top(0.).left(0.))
               .width(Size::fill())
               .height(Size::fill())
-              .on_press(move |_| soundboard_open.set(false)),
+              .on_press(move |_| view.set(OverlayView::Open)),
           )
         })
         .maybe_child(current_user.map(|user| {
@@ -396,11 +391,11 @@ fn app(startup: Startup) -> impl IntoElement {
             .cross_align(Alignment::Center)
             .height(Size::percent(90.0_f32))
             .width(Size::fill())
-            .maybe(soundboard_open(), |el| el.child(soundboard))
+            .maybe(soundboard_open, |el| el.child(soundboard))
             .child(VoiceControls {
               user,
               app: app.clone(),
-              soundboard_open,
+              view,
               theme,
               ui_scale,
             })
