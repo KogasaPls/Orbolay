@@ -3,7 +3,6 @@ use std::time::Duration;
 use freya::prelude::*;
 use orbolay_core::{
   app_state::AppHandle,
-  protocol::BridgeCommand,
   user::{MAX_VOLUME, User},
 };
 
@@ -94,10 +93,8 @@ impl Component for UserContextMenuItem {
               let (app, user_id) = (app.clone(), user_id.clone());
               pending_send.set(Some(spawn_in_window(async move {
                 timer(VOLUME_SEND_DELAY).await;
-                app.send(BridgeCommand::SetUserVolume {
-                  user_id,
-                  volume: value / 100. * f64::from(MAX_VOLUME),
-                });
+                #[expect(clippy::cast_possible_truncation, reason = "the slider runs 0-100")]
+                app.set_user_volume(user_id, value as f32 / 100. * MAX_VOLUME);
               })));
             })
             .theme(slider_theme)

@@ -94,6 +94,10 @@ impl User {
     }
   }
 
+  pub fn set_volume(&mut self, volume: f32) {
+    self.volume = local_volume(volume);
+  }
+
   /// Applies a full state update, keeping what it does not carry: speech, and the name, avatar,
   /// and volume when they are missing.
   pub fn update(&mut self, state: MemberState) {

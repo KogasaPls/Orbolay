@@ -381,6 +381,21 @@ impl AppHandle {
     let _ = self.command_tx.send(command);
   }
 
+  /// Asks Discord to play a member at `volume` and shows it right away, since Discord does not
+  /// report local volume changes back.
+  pub fn set_user_volume(&self, user_id: String, volume: f32) {
+    self.update_if_changed(|state| {
+      state
+        .member_mut(&user_id)
+        .map(|user| user.set_volume(volume))
+        .is_some()
+    });
+    self.send(BridgeCommand::SetUserVolume {
+      user_id,
+      volume: f64::from(volume),
+    });
+  }
+
   /// Requests a redraw; a full channel already has one pending.
   fn redraw(&self) {
     let _ = self.redraw_tx.try_send(());
@@ -400,7 +415,7 @@ mod tests {
   use super::{AppState, MAX_NOTIFICATIONS, Timer, TimerKind};
   use crate::{
     config::Config,
-    protocol::{BridgeEvent, MemberState, Notification, SoundboardSoundPayload},
+    protocol::{BridgeCommand, BridgeEvent, MemberState, Notification, SoundboardSoundPayload},
     user::{Activity, Speech, User, UserVoiceState},
   };
 
@@ -739,6 +754,31 @@ mod tests {
     state.apply(BridgeEvent::ChannelLeft, Instant::now());
     assert_eq!(state.call, None);
     assert_eq!(state.members(), []);
+  }
+
+  #[test]
+  fn volume_changes_show_before_discord_confirms_them() {
+    let (redraw_tx, _redraw_rx) = flume::bounded(1);
+    let (app, commands) = super::AppHandle::new(joined(), redraw_tx);
+
+    app.set_user_volume("peer".into(), 150.);
+
+    let volume = app.read(|state| {
+      state
+        .members()
+        .iter()
+        .find(|u| u.id == "peer")
+        .unwrap()
+        .volume
+    });
+    assert!((volume - 150.).abs() < f32::EPSILON);
+    assert_eq!(
+      commands.try_recv(),
+      Ok(BridgeCommand::SetUserVolume {
+        user_id: "peer".into(),
+        volume: 150.
+      })
+    );
   }
 
   #[test]
