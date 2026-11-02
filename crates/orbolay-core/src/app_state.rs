@@ -9,7 +9,7 @@ use crate::{
   config::Config,
   payloads::{Notification, SoundboardSoundPayload},
   protocol::{BridgeCommand, BridgeEvent, VoiceStatePayload},
-  user::{PremiumType, User},
+  user::User,
 };
 
 /// How long a notification stays on screen.
@@ -31,7 +31,8 @@ pub struct Soundboard {
 pub struct AppState {
   pub config: Config,
   pub user_id: String,
-  pub premium_type: PremiumType,
+  /// Nitro lets the soundboard play sounds from other servers.
+  pub has_nitro: bool,
   pub current_channel: String,
   pub current_guild_id: String,
   pub is_censor: bool,
@@ -40,13 +41,7 @@ pub struct AppState {
   pub soundboard: Arc<Soundboard>,
 }
 
-/// Work that a state transition asks its owner to do.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Effect {
-  Schedule(Timer),
-  OpenConfig,
-}
-
+/// Follow-up work a state transition schedules: [`AppState::fire`] runs it at `at`.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Timer {
   pub at: Instant,
@@ -70,16 +65,16 @@ impl AppState {
     }
   }
 
-  /// Applies a bridge event and returns the follow-up work it needs.
-  pub fn apply(&mut self, event: BridgeEvent, now: Instant) -> Vec<Effect> {
+  /// Applies a bridge event and returns the timer it needs, if any.
+  pub fn apply(&mut self, event: BridgeEvent, now: Instant) -> Option<Timer> {
     match event {
       BridgeEvent::RegisterConfig {
         user_id,
         premium_type,
       } => {
         self.user_id = user_id;
-        if let Some(premium_type) = premium_type.and_then(|p| PremiumType::try_from(p).ok()) {
-          self.premium_type = premium_type;
+        if let Some(premium_type) = premium_type {
+          self.has_nitro = premium_type != 0;
         }
       }
       BridgeEvent::ChannelJoined { states, guild_id } => {
@@ -96,7 +91,7 @@ impl AppState {
         self.voice_users = states.into_iter().map(User::from).collect();
       }
       BridgeEvent::VoiceStateUpdate { state } => {
-        return self.update_voice_state(state, now).into_iter().collect();
+        return self.update_voice_state(state, now);
       }
       BridgeEvent::ChannelLeft => {
         self.voice_users.clear();
@@ -105,7 +100,7 @@ impl AppState {
       }
       BridgeEvent::MessageNotification { mut message } => {
         message.icon = message.icon.replace(".webp", ".png");
-        return vec![self.notify(message, now)];
+        return Some(self.notify(message, now));
       }
       BridgeEvent::StreamerMode { enabled } => self.is_censor = enabled,
       BridgeEvent::SoundboardUpdate {
@@ -123,12 +118,11 @@ impl AppState {
         soundboard.sounds.extend(by_guild);
         soundboard.guild_names.extend(guild_names);
       }
-      BridgeEvent::OpenConfig => return vec![Effect::OpenConfig],
     }
-    Vec::new()
+    None
   }
 
-  fn update_voice_state(&mut self, mut state: VoiceStatePayload, now: Instant) -> Option<Effect> {
+  fn update_voice_state(&mut self, mut state: VoiceStatePayload, now: Instant) -> Option<Timer> {
     let leaves_channel = match &state.channel_id {
       Some(Some(channel_id)) => *channel_id != self.current_channel,
       Some(None) => true,
@@ -187,25 +181,25 @@ impl AppState {
 
     let until = now + grace;
     user.grace_until = Some(until);
-    Some(Effect::Schedule(Timer {
+    Some(Timer {
       at: until,
       kind: TimerKind::GraceEnd {
         user_id: user.id.clone(),
       },
-    }))
+    })
   }
 
   /// Shows a notification, dropping the oldest beyond [`MAX_NOTIFICATIONS`].
-  pub fn notify(&mut self, mut notification: Notification, now: Instant) -> Effect {
+  pub fn notify(&mut self, mut notification: Notification, now: Instant) -> Timer {
     let at = now + NOTIFICATION_TIMEOUT;
     notification.expires_at = Some(at);
     self.messages.push(notification);
     let excess = self.messages.len().saturating_sub(MAX_NOTIFICATIONS);
     self.messages.drain(..excess);
-    Effect::Schedule(Timer {
+    Timer {
       at,
       kind: TimerKind::ExpireMessages,
-    })
+    }
   }
 
   /// Applies a due timer and reports whether anything visible changed.
@@ -364,28 +358,16 @@ impl AppHandle {
     self.read(Clone::clone)
   }
 
-  /// Applies a bridge event and carries out its effects.
+  /// Applies a bridge event and schedules the timer it returns.
   pub fn apply(&self, event: BridgeEvent) {
-    let effects = self.update(|state| state.apply(event, Instant::now()));
-    self.run(effects);
+    if let Some(timer) = self.update(|state| state.apply(event, Instant::now())) {
+      let _ = self.timer_tx.send(timer);
+    }
   }
 
   pub fn notify(&self, notification: Notification) {
-    let effect = self.update(|state| state.notify(notification, Instant::now()));
-    self.run([effect]);
-  }
-
-  fn run(&self, effects: impl IntoIterator<Item = Effect>) {
-    for effect in effects {
-      match effect {
-        Effect::Schedule(timer) => {
-          let _ = self.timer_tx.send(timer);
-        }
-        Effect::OpenConfig => {
-          let _ = self.open_config();
-        }
-      }
-    }
+    let timer = self.update(|state| state.notify(notification, Instant::now()));
+    let _ = self.timer_tx.send(timer);
   }
 
   pub fn send(&self, command: BridgeCommand) {
@@ -412,7 +394,7 @@ impl PartialEq for AppHandle {
 mod tests {
   use std::time::{Duration, Instant};
 
-  use super::{AppState, Effect, MAX_NOTIFICATIONS, Timer, TimerKind};
+  use super::{AppState, MAX_NOTIFICATIONS, Timer, TimerKind};
   use crate::{
     config::Config,
     payloads::{Notification, SoundboardSoundPayload},
@@ -421,7 +403,6 @@ mod tests {
   };
 
   const GRACE: Duration = Duration::from_millis(300);
-  const NO_EFFECTS: Vec<Effect> = Vec::new();
 
   fn member(user_id: &str) -> VoiceStatePayload {
     VoiceStatePayload {
@@ -495,11 +476,11 @@ mod tests {
   fn stopping_speaking_keeps_the_speaker_visible_until_the_grace_period_ends() {
     let mut state = joined();
     let now = Instant::now();
-    assert_eq!(state.apply(speaking("peer", true), now), NO_EFFECTS);
+    assert_eq!(state.apply(speaking("peer", true), now), None);
     assert_eq!(voice_state(&state, "peer"), Some(UserVoiceState::Speaking));
 
     let effects = state.apply(speaking("peer", false), now);
-    assert_eq!(effects, vec![Effect::Schedule(grace_end(now + GRACE))]);
+    assert_eq!(effects, Some(grace_end(now + GRACE)));
     assert_eq!(voice_state(&state, "peer"), Some(UserVoiceState::Speaking));
 
     assert!(state.fire(&grace_end(now + GRACE), now + GRACE));
@@ -526,11 +507,8 @@ mod tests {
     let mut state = joined();
     let now = Instant::now();
     state.apply(speaking("peer", true), now);
-    assert_eq!(state.apply(speaking("peer", false), now).len(), 1);
-    assert_eq!(
-      state.apply(speaking("peer", false), now + GRACE / 2),
-      NO_EFFECTS
-    );
+    assert!(state.apply(speaking("peer", false), now).is_some());
+    assert_eq!(state.apply(speaking("peer", false), now + GRACE / 2), None);
   }
 
   #[test]
@@ -539,7 +517,7 @@ mod tests {
     state.config.speaking_grace_ms = 0;
     let now = Instant::now();
     state.apply(speaking("peer", true), now);
-    assert_eq!(state.apply(speaking("peer", false), now), NO_EFFECTS);
+    assert_eq!(state.apply(speaking("peer", false), now), None);
     assert_eq!(
       voice_state(&state, "peer"),
       Some(UserVoiceState::NotSpeaking)
@@ -558,7 +536,7 @@ mod tests {
       }),
       now,
     );
-    assert_eq!(effects, NO_EFFECTS);
+    assert_eq!(effects, None);
     assert_eq!(voice_state(&state, "peer"), Some(UserVoiceState::Muted));
   }
 

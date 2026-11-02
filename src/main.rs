@@ -345,7 +345,7 @@ fn app(startup: Startup) -> impl IntoElement {
     app: app.clone(),
     soundboard: state.soundboard.clone(),
     current_guild_id: state.current_guild_id.clone(),
-    has_nitro: state.premium_type.has_nitro(),
+    has_nitro: state.has_nitro,
     theme,
     ui_scale,
   };

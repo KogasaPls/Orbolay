@@ -67,7 +67,6 @@ pub enum BridgeEvent {
     #[serde(default)]
     guild_names: HashMap<String, String>,
   },
-  OpenConfig,
 }
 
 /// Messages Orbolay sends to the bridge.
@@ -136,10 +135,6 @@ mod tests {
     assert_eq!(
       event(json!({"cmd": "CHANNEL_LEFT"})),
       BridgeEvent::ChannelLeft
-    );
-    assert_eq!(
-      event(json!({"cmd": "OPEN_CONFIG"})),
-      BridgeEvent::OpenConfig
     );
   }
 

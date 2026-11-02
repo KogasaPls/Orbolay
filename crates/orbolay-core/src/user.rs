@@ -1,34 +1,5 @@
 use std::time::Instant;
 
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub enum PremiumType {
-  #[default]
-  None,
-  NitroClassic,
-  Nitro,
-  NitroBasic,
-}
-
-impl PremiumType {
-  pub fn has_nitro(&self) -> bool {
-    !matches!(self, Self::None)
-  }
-}
-
-impl TryFrom<u64> for PremiumType {
-  type Error = String;
-
-  fn try_from(value: u64) -> Result<Self, Self::Error> {
-    match value {
-      0 => Ok(Self::None),
-      1 => Ok(Self::NitroClassic),
-      2 => Ok(Self::Nitro),
-      3 => Ok(Self::NitroBasic),
-      _ => Err(format!("Unknown premium type: {value}")),
-    }
-  }
-}
-
 /// What a member's voice status looks like: deafened outranks muted, which outranks speaking.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UserVoiceState {

@@ -16,7 +16,7 @@ use crate::util::{
 fn guild_order(guild_id: &str, current: &str) -> u8 {
   if !current.is_empty() && guild_id == current {
     0
-  } else if guild_id.is_empty() || guild_id == "0" {
+  } else if guild_id.is_empty() {
     1
   } else {
     2
@@ -30,7 +30,7 @@ fn usable(sound: &SoundboardSoundPayload, has_nitro: bool, current_guild_id: &st
       || sound
         .guild_id
         .as_deref()
-        .is_none_or(|guild_id| guild_id == "0" || guild_id == current_guild_id))
+        .is_none_or(|guild_id| guild_id == current_guild_id))
 }
 
 #[derive(PartialEq)]
