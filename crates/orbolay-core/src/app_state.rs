@@ -685,6 +685,20 @@ mod tests {
   }
 
   #[test]
+  fn config_subscribers_only_hear_real_changes() {
+    let (redraw_tx, _redraw_rx) = flume::bounded(1);
+    let (open_config_tx, _open_config_rx) = flume::unbounded();
+    let (app, _commands) = super::AppHandle::new(AppState::default(), redraw_tx, open_config_tx);
+    let changes = app.subscribe_config();
+
+    app.set_config(|config| config.port = 7000);
+    app.set_config(|config| config.port = 7000);
+
+    assert_eq!(changes.try_recv().map(|c| c.port), Ok(7000));
+    assert!(changes.try_recv().is_err());
+  }
+
+  #[test]
   fn soundboard_updates_merge_by_guild() {
     let sound = |id: &str, guild: Option<&str>| SoundboardSoundPayload {
       sound_id: id.into(),

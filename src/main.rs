@@ -251,6 +251,22 @@ fn app(startup: Startup) -> impl IntoElement {
       }
     });
 
+    // Move the window when the selected display changes
+    let config_rx = app.subscribe_config();
+    let mut display = (
+      startup.config.display_name.clone(),
+      startup.config.display_idx,
+    );
+    spawn_in_window(async move {
+      while let Ok(config) = config_rx.recv_async().await {
+        let selected = (config.display_name.clone(), config.display_idx);
+        if selected != display {
+          display = selected;
+          update_monitor(&config);
+        }
+      }
+    });
+
     let config_app = app.clone();
     spawn_in_window(async move {
       while open_config_rx.recv_async().await.is_ok() {
@@ -427,12 +443,5 @@ fn start_background(
     warn!("Failed to save config.json: {err}");
   }
 
-  start_config_watcher(app.clone(), |old_config, new_config| {
-    // Reposition the window when the target monitor changes
-    if old_config.display_name != new_config.display_name
-      || old_config.display_idx != new_config.display_idx
-    {
-      update_monitor(new_config);
-    }
-  });
+  start_config_watcher(app.clone());
 }
