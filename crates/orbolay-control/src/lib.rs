@@ -34,7 +34,7 @@ pub fn start(handler: impl Fn(Command) + Send + Sync + 'static) {
           let handler = handler.clone();
           std::thread::spawn(move || {
             serve(stream, handler.as_ref());
-            info!("Control socket client disconnected");
+            debug!("Control socket client disconnected");
           });
         }
         Err(e) => {

@@ -6,7 +6,6 @@ use std::{collections::HashMap, sync::atomic::Ordering};
 use freya::prelude::*;
 use gumdrop::Options;
 use log::{info, warn};
-use native_dialog::{MessageDialogBuilder, MessageLevel};
 use orbolay_control::Command;
 use orbolay_core::{
   app_state::{AppHandle, AppState, SharedAppState},
@@ -40,7 +39,6 @@ mod keys;
 mod manager;
 mod notifications;
 mod target;
-mod util;
 mod window;
 
 static TWEMOJI_FONT: &[u8] = include_bytes!("../assets/fonts/Twemoji.ttf");
@@ -155,15 +153,9 @@ fn main() {
     std::process::exit(0);
   }
 
-  if util::process::is_already_running() {
-    MessageDialogBuilder::default()
-      .set_level(MessageLevel::Error)
-      .set_title("Orbolay")
-      .set_text("Orbolay is already running. Kill the existing process before starting a new one.")
-      .alert()
-      .show()
-      .expect("Failed to show message dialog");
-    std::process::exit(0);
+  if orbolay_control::Client::connect().is_ok() {
+    eprintln!("Orbolay is already running; stop it before starting another instance.");
+    std::process::exit(1);
   }
 
   if !config.xwayland && wayland_display.as_deref().is_ok_and(|d| !d.is_empty()) {
