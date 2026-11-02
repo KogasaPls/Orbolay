@@ -5,6 +5,7 @@ pub struct DropdownControl {
   options: Vec<String>,
   selected: usize,
   on_change: EventHandler<usize>,
+  enabled: bool,
 }
 
 impl DropdownControl {
@@ -13,7 +14,15 @@ impl DropdownControl {
       options,
       selected,
       on_change,
+      enabled: true,
     }
+  }
+
+  /// A disabled dropdown shows its value but offers no choices.
+  #[must_use]
+  pub fn enabled(mut self, enabled: bool) -> Self {
+    self.enabled = enabled;
+    self
   }
 }
 
@@ -22,21 +31,20 @@ impl Component for DropdownControl {
     let selected = self.selected;
     let selected_label = self.options.get(selected).cloned().unwrap_or_default();
 
-    Select::new()
-      .selected_item(selected_label)
-      .children(
-        self
-          .options
-          .iter()
-          .enumerate()
-          .map(|(i, option)| -> Element {
-            let on_change = self.on_change.clone();
-            MenuItem::new()
-              .selected(selected == i)
-              .on_press(move |_| on_change.call(i))
-              .child(option.clone())
-              .into()
-          }),
-      )
+    Select::new().selected_item(selected_label).children(
+      self
+        .options
+        .iter()
+        .enumerate()
+        .filter(|_| self.enabled)
+        .map(|(i, option)| -> Element {
+          let on_change = self.on_change.clone();
+          MenuItem::new()
+            .selected(selected == i)
+            .on_press(move |_| on_change.call(i))
+            .child(option.clone())
+            .into()
+        }),
+    )
   }
 }

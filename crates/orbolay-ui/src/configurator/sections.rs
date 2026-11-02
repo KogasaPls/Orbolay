@@ -385,6 +385,7 @@ impl Settings {
 
   fn voice(&self) -> Vec<Element> {
     let config = &self.config;
+    let grace_style_applies = config.display_voice_members == DisplayVoiceMembers::WhenSpeaking;
     let (grace_styles, grace_style) = choices(
       &SpeakingGraceStyle::ALL,
       config.speaking_grace_style,
@@ -420,8 +421,9 @@ impl Settings {
               self.updater(|cfg, idx: usize| {
                 cfg.speaking_grace_style = SpeakingGraceStyle::ALL[idx];
               }),
-            ),
-            config.display_voice_members != DisplayVoiceMembers::WhenSpeaking,
+            )
+            .enabled(grace_style_applies),
+            !grace_style_applies,
           ),
         ],
       ),
