@@ -1,179 +1,44 @@
 <div align="center">
   <h1>Orbolay</h1>
-  <p>Quick, small, native, multi-platform Discord overlay alternative</p>
+  <p>A small native Discord voice overlay for modded clients on Linux</p>
 </div>
 
-<div align="center">
-  <img src="https://img.shields.io/github/actions/workflow/status/SpikeHD/Orbolay/build.yml" />
-  <img src="https://img.shields.io/github/commit-activity/m/SpikeHD/Orbolay" />
-  <img src="https://img.shields.io/github/release-date/SpikeHD/Orbolay" />
-</div>
-
-<div align="center">
-  <a href="https://discord.gg/agQ9mRdHMZ"><img src="https://img.shields.io/discord/1128909403672821811?logo=discord&color=%20%235865F2" /></a>
-  <img src="https://img.shields.io/github/stars/SpikeHD/Orbolay" />
-</div>
-
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/4cfaa580-5513-43c0-99d2-22a29dc64b2f" />
-</div>
-
-# Downloads
-
-<table align="center">
-  <tr>
-    <th>
-      <img src="docs/image/windows.png" width="25%" align="center" />
-    </th>
-    <th>
-      <img src="docs/image/apple.png" width="25%" align="center" />
-    </th>
-    <th>
-      <img src="docs/image/debian.png" width="25%" align="center" />
-    </th>
-    <th>
-      <img src="docs/image/linux.png" width="25%" align="center" />
-    </th>
-  </tr>
-
-  <tr>
-    <td width="23%">
-      <div align="center">
-        <a href="https://github.com/SpikeHD/Orbolay/releases/latest/download/orbolay-x86_64-pc-windows-msvc.exe">x86_64</a>
-      </div>
-    </td>
-    <td width="23%">
-      <div align="center">
-        <a href="https://github.com/SpikeHD/Orbolay/releases/latest/download/orbolay-x86_64-apple-darwin.app.zip">x86_64 (Intel)</a>
-        <span>|</span>
-        <a href="https://github.com/SpikeHD/Orbolay/releases/latest/download/orbolay-aarch64-apple-darwin.app.zip">ARM64 (M-series)</a>
-      </div>
-    </td>
-    <td width="23%">
-      <div align="center">
-        <a href="https://github.com/SpikeHD/Orbolay/releases/latest/download/orbolay-x86_64-unknown-linux-gnu.deb">.deb (x86_64)</a>
-      </div>
-    </td>
-    <td width="23%">
-      <div align="center">
-        <a href="https://github.com/SpikeHD/Orbolay/releases/latest/download/orbolay-x86_64-unknown-linux-gnu">x86_64</a>
-        <span>|</span>
-        <a href="https://github.com/SpikeHD/Orbolay/releases/latest/download/orbolay-x86_64-unknown-linux-gnu.AppImage">AppImage (x86_64)</a>
-        <span>|</span>
-        <a href="https://github.com/SpikeHD/Orbolay/releases/latest/download/orbolay-x86_64-unknown-linux-gnu.flatpak">Flatpak (x86_64)</a>
-      </div>
-    </td>
-  </tr>
-</table>
-
-
-# Table of Contents
-
-* [Features](#features)
-* [Compatibility](#compatibility)
-* [Installation](#installation)
-  * [With Package Managers](#with-package-managers)
-    * [Windows (scoop)](#windows-scoop)
-    * [Arch](#arch)
-    * [Void](#void)
-    * [`cargo`](#cargo)
-  * [Manual Installation](#manual-installation)
-* [How to Use](#how-to-use)
-  * [With Official Clients](#with-official-clients)
-  * [With Modded Clients](#with-modded-clients)
-* [Command-line Controls](#command-line-controls) 
-* [Using as a Wrapper Process](#using-as-a-wrapper-process)
-* [Custom Templates](#custom-templates)
-* [Configuration](#configuration)
-* [Other Notes](#other-notes)
-  * [Hyprland](#hyprland)
-* [Building](#building)
-  * [Requirements](#requirements)
-  * [Steps](#steps)
-* [Special Thanks](#special-thanks)
-* [Contributing](#contributing)
+This is a hard fork of [SpikeHD/Orbolay](https://github.com/SpikeHD/Orbolay). It supports Linux only
+and talks to Discord exclusively through the `OrbolayBridge` client plugin over a local websocket;
+the official-client IPC mode, Windows and macOS support, and the update checker were removed.
 
 # Features
 
-* Works with any official or modded client (including web!)
-* Voice channel member list and status (who is speaking/muted/deafened/live/etc)
-* Custom notifications
-* Mute/deafen/disconnect controls
-* User volume control
+* Voice channel members and their state (speaking, muted, deafened, streaming)
+* Message notifications that jump to the message when clicked
+* Mute, deafen, disconnect, and stop-stream controls
+* Per-user volume (right-click a member)
 * Soundboard
-* Fully customizable using HTML and CSS (with no webview!)
+* Fully customizable using HTML and CSS, without a webview ([TEMPLATES.md](./TEMPLATES.md))
 
-# Compatibility
+# Requirements
 
-* **Windows** - 10 and 11 both work, Windows 7 might work with kernel extensions
-* **MacOS** - works, but you will need to set a custom keybind that runs `orbolay --toggle-overlay`
-* **Linux**
-  * **X11** - should work fine, you may need to add your user to the `input` group
-  * **Wayland** - should work fine, you will want to use XWayland though (via `WAYLAND_DISPLAY="" orbolay`) and you may need to add your user to the `input` group
+* A Discord client running the `OrbolayBridge` plugin from this fork's companion repository
+  (`equibop-plugin-orbolay-bridge`), which speaks the protocol in
+  [`crates/orbolay-core/src/protocol.rs`](crates/orbolay-core/src/protocol.rs)
+* X11 or Wayland through XWayland (the default; see "Run with XWayland" in the settings)
+* For the built-in keybind, membership in the `input` group. Orbolay reads keyboards without
+  grabbing them and only opens devices that can send the bound keys while keybinds are enabled.
 
-# Installation
+# Usage
 
-## With Package Managers
+1. Start your client with the bridge plugin enabled.
+2. Run `orbolay`. The bridge connects to `127.0.0.1:6888` by default.
+3. Press <kbd>Ctrl</kbd> + <kbd>`</kbd> to open the overlay and use the voice controls.
 
-> [!WARNING]
-> I **DO NOT** maintain Orbolay packages myself, but some kind people maintain them on their own spare time. Check the package repository for yourself if you are skeptical of it's legitimacy!
+On first run the settings window opens. Open it later with the cog in the overlay or
+`orbolay --config`. Settings live in `~/.config/orbolay/config.json` and reload when the file
+changes.
 
-> [!NOTE]
-> Maintaining an `orbolay` package somewhere else? Let me know in an issue and I will add it here!
+## Command-line controls
 
-### Windows (scoop)
-```sh
-scoop bucket add turbo 'https://github.com/Small-Ku/turbo-bucket.git'
-scoop install turbo/orbolay
-```
-
-### Arch
-```sh
-yay -S orbolay-git
-```
-
-### Void
-```sh
-echo "repository=https://void.creations.works" | sudo tee /etc/xbps.d/creations.conf
-sudo xbps-install -S orbolay
-```
-
-### `cargo`
-```sh
-cargo install --locked --git https://github.com/SpikeHD/Orbolay.git
-```
-
-## Manual Installation
-
-1. Download a [release](https://github.com/SpikeHD/Orbolay/releases) or the [latest actions build](https://github.com/SpikeHD/Orbolay/actions/workflows/build.yml).
-2. Run the executable!
-
-# How to Use
-
-## With Official Clients
-
-With Discord open:
-
-1. Run the executable
-2. In the [configuration menu](#configuration), change "Connection Mode" to `ipc` (under "Connection")
-3. Press <kbd>Ctrl</kbd> + <kbd>`</kbd> to open the overlay and interact with voice controls
-
-## With Modded Clients
-
-With your client open:
-
-1. Install a compatible bridge plugin ([Shelter](https://github.com/SpikeHD/shelter-plugins?tab=readme-ov-file#orbolay-bridge) / [Vencord](https://github.com/SpikeHD/vc-orbolay-bridge), also available on [Equicord](https://github.com/Equicord/Equicord))
-2. Run the executable
-3. In the [configuration menu](#configuration), change "Connection Mode" to `websocket` (under "Connection")
-4. Press <kbd>Ctrl</kbd> + <kbd>`</kbd> to open the overlay and interact with voice controls
-
-# Command-line Controls
-
-Instead of using the built-in keybind watcher, you are more than welcome to use your system's built-in shortcut manager instead! Simply create shortcuts for any of the following,
-and they will communicate with the main Orbolay process:
-
-> [!NOTE]
-> If using shortcuts to toggle the overlay, disable the "Enable Keybind" option in the config menu!
+These commands talk to the running instance, so you can bind them in your desktop's shortcut
+settings instead of using the built-in keybind (disable "Enable Keybind" if you do):
 
 ```sh
 orbolay --toggle-overlay
@@ -181,39 +46,32 @@ orbolay --mute
 orbolay --deafen
 ```
 
-\* *As a bonus, this can serve as a watered-down custom keybind provider for those of you on clients that do not support such a feature!*
+`orbolay --port <port>` overrides the configured websocket port.
 
-# Using as a Wrapper Process
+## Wrapping a game
 
-Orbolay also works as a process wrapper, allowing you to have it only open when you run certain games. In Steam, for example, you
-can have Orbolay run when your game launches by setting this as your launch options (combined with whatever other options
-you may be using):
+Orbolay can launch a program and exit with it. In Steam launch options:
 
 ```sh
 orbolay -- %command%
 ```
 
-# Configuration
+## Displays
 
-On first run, Orbolay should open the configuration window automatically. In the future, it can be opened by clicking the settings cog in the
-overlay, or by running `orbolay --config` in any terminal.
+The Display setting saves the connector name (for example `"displayName": "DP-1"`), so monitor
+enumeration changes do not move the overlay. If the named display is missing, Orbolay uses the
+primary display. Configs that only have the older `displayIdx` keep working until a display is
+selected again.
 
-On Linux, the Display setting saves the connector name so monitor enumeration changes
-will not move the overlay to another connector. You can also set `"displayName": "DP-1"`
-in `~/.config/orbolay/config.json`. The name takes precedence over the legacy zero-based
-`displayIdx`; if the named display is unavailable, Orbolay falls back to the primary
-display, or the first detected display when no primary is reported. Existing configurations
-with only `displayIdx` keep their current behavior until a display is selected again.
+## Logging
 
-# Custom Templates
-
-Components within Orbolay can be customized with HTML and CSS! See [./TEMPLATES.md](./TEMPLATES.md) for more information.
-
-# Other Notes
+Orbolay logs its own crates at `info` and dependencies at `warn` to stderr. Set `RUST_LOG` to
+change that, for example `RUST_LOG=orbolay_transport=debug` to log every bridge command.
 
 ## Hyprland
 
-To use Orbolay with Hyprland, you will need to manually set some window rules (taken from [#28](https://github.com/SpikeHD/Orbolay/issues/28)). Note that this prevents the clickable controls from working:
+Hyprland needs window rules for the overlay (from upstream issue
+[#28](https://github.com/SpikeHD/Orbolay/issues/28)); with them the clickable controls do not work:
 
 ```
 hl.window_rule({
@@ -236,24 +94,19 @@ hl.window_rule({
 
 # Building
 
-## Requirements
+The repository pins the stable toolchain in `rust-toolchain.toml`.
 
-* Rust and Cargo
+```sh
+cargo build --release
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+```
 
-## Steps
+The binary is `target/release/orbolay`.
 
-1. Clone the repository
-2. `cargo build --release`
-3. Binaries will be in `target/release/`
+# Credits
 
-# Special Thanks
-
-* [Freya](https://github.com/marc2332/freya) - the main GUI library (that I may have fallen in love with)
-* [Discover](https://github.com/trigg/Discover) - a fantastic reference for some of the IPC-related stuff
-* [docs.discord.food](https://docs.discord.food/) - incredible reference for undocumented Discord APIs
-* [whynothugo/twemoji.ttf](https://git.sr.ht/~whynothugo/twemoji.ttf) - a proper CBDT Twemoji font file
-* Everyone else who contributes positively to the Rust ecosystem :)
-
-# Contributing
-
-PRs (especially for compatibility), polite issues, etc. are all welcome!
+* [SpikeHD](https://github.com/SpikeHD) and the upstream Orbolay contributors
+* [Freya](https://github.com/marc2332/freya), the GUI library
+* [docs.discord.food](https://docs.discord.food/), a reference for undocumented Discord APIs
+* [whynothugo/twemoji.ttf](https://git.sr.ht/~whynothugo/twemoji.ttf), a CBDT Twemoji font
