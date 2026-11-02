@@ -99,7 +99,7 @@ fn live_indicator(active: bool) -> String {
   }
 }
 
-pub fn user_template_classes(user: &User, is_self: bool) -> Vec<&'static str> {
+fn user_template_classes(user: &User, is_self: bool) -> Vec<&'static str> {
   let mut classes = Vec::new();
 
   match user.voice_state() {

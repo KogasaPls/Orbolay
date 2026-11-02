@@ -10,7 +10,7 @@ use log::warn;
 use orbolay_core::{config::config_dir, dirs::TEMPLATES_DIR};
 use scraper::{Html, Selector};
 
-use crate::util::theme::{Theme, to_hex};
+use crate::util::theme::{GREEN, Theme, to_hex};
 
 /// Rules shared by one family of templates (voice users or notifications).
 pub struct TemplateSpec {
@@ -210,7 +210,7 @@ pub fn escape_html(input: &str) -> String {
     .replace('\'', "&#39;")
 }
 
-pub fn escape_attr(value: &str) -> String {
+fn escape_attr(value: &str) -> String {
   let mut out = String::with_capacity(value.len());
   for c in value.chars() {
     match c {
@@ -225,7 +225,7 @@ pub fn escape_attr(value: &str) -> String {
   out
 }
 
-pub fn render_tag(name: &str, attrs: &[(String, String)]) -> String {
+fn render_tag(name: &str, attrs: &[(String, String)]) -> String {
   let mut tag = String::with_capacity(64);
   tag.push('<');
   tag.push_str(name);
@@ -236,7 +236,7 @@ pub fn render_tag(name: &str, attrs: &[(String, String)]) -> String {
   tag
 }
 
-pub fn merge_classes(attrs: &[(String, String)], extra: &[&str]) -> Vec<(String, String)> {
+fn merge_classes(attrs: &[(String, String)], extra: &[&str]) -> Vec<(String, String)> {
   let class_pos = attrs.iter().position(|(name, _)| name == "class");
   let mut classes: Vec<&str> =
     class_pos.map_or_else(Vec::new, |pos| attrs[pos].1.split_whitespace().collect());
@@ -265,13 +265,14 @@ pub fn is_network_url(url: &str) -> bool {
 
 pub fn theme_decls(theme: &Theme) -> String {
   format!(
-    "--gray: {}; --darkish-gray: {}; --light-gray: {}; --superlight-gray: {}; --muted-gray: {}; --text: {}; --green: #01863B; --border-radius: {}px;",
+    "--gray: {}; --darkish-gray: {}; --light-gray: {}; --superlight-gray: {}; --muted-gray: {}; --text: {}; --green: {}; --border-radius: {}px;",
     to_hex(theme.gray),
     to_hex(theme.darkish_gray),
     to_hex(theme.light_gray),
     to_hex(theme.superlight_gray),
     to_hex(theme.muted_gray),
     to_hex(theme.text_color),
+    to_hex(GREEN),
     theme.border_radius
   )
 }

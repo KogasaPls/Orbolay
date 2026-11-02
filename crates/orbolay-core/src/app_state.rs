@@ -17,9 +17,6 @@ pub const NOTIFICATION_TIMEOUT: Duration = Duration::from_secs(5);
 /// How many notifications are shown at once.
 pub const MAX_NOTIFICATIONS: usize = 3;
 
-/// Thread-safe shared state for background threads.
-pub type SharedAppState = Arc<RwLock<AppState>>;
-
 /// Soundboard sounds grouped by guild ID (`""` for default sounds), with guild display names.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Soundboard {
@@ -235,7 +232,7 @@ impl AppState {
 /// snapshot, so a burst of updates costs a single render.
 #[derive(Clone)]
 pub struct AppHandle {
-  shared: SharedAppState,
+  shared: Arc<RwLock<AppState>>,
   redraw_tx: flume::Sender<()>,
   open_config_tx: flume::Sender<()>,
   timer_tx: flume::Sender<Timer>,
@@ -297,10 +294,6 @@ impl AppHandle {
     }
   }
 
-  pub fn shared(&self) -> &SharedAppState {
-    &self.shared
-  }
-
   pub fn recording_keybind(&self) -> &Arc<AtomicBool> {
     &self.recording_keybind
   }
@@ -310,7 +303,7 @@ impl AppHandle {
     f(&state)
   }
 
-  pub fn update<T>(&self, f: impl FnOnce(&mut AppState) -> T) -> T {
+  fn update<T>(&self, f: impl FnOnce(&mut AppState) -> T) -> T {
     let result = {
       let mut state = self.shared.write().unwrap();
       f(&mut state)
@@ -319,7 +312,7 @@ impl AppHandle {
     result
   }
 
-  pub fn update_if_changed(&self, f: impl FnOnce(&mut AppState) -> bool) {
+  fn update_if_changed(&self, f: impl FnOnce(&mut AppState) -> bool) {
     let changed = {
       let mut state = self.shared.write().unwrap();
       f(&mut state)
@@ -378,7 +371,7 @@ impl AppHandle {
   }
 
   /// Requests a redraw; a full channel already has one pending.
-  pub fn redraw(&self) {
+  fn redraw(&self) {
     let _ = self.redraw_tx.try_send(());
   }
 
