@@ -1,5 +1,8 @@
 //! Reads keyboards through evdev without grabbing them, so other programs still receive every
-//! key press. Devices are only open while global keybinds are enabled.
+//! key press.
+//!
+//! While global keybinds are disabled the keybind thread only waits for config changes: no
+//! async runtime, open device, or `/dev/input` watcher exists until they are enabled again.
 
 use std::{
   path::PathBuf,
@@ -23,16 +26,7 @@ pub fn watch_keybinds(app: AppHandle, keybind_tx: flume::Sender<KeyEvent>) {
   let config_rx = app.subscribe_config();
   let spawned = std::thread::Builder::new()
     .name("orbolay-keys".into())
-    .spawn(move || {
-      let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_io()
-        .enable_time()
-        .build();
-      match runtime {
-        Ok(runtime) => runtime.block_on(run(&app, &config_rx, &keybind_tx)),
-        Err(e) => warn!("Could not start the keybind runtime: {e}"),
-      }
-    });
+    .spawn(move || run(&app, &config_rx, &keybind_tx));
   if let Err(e) = spawned {
     warn!("Could not start the keybind thread: {e}");
   }
@@ -46,35 +40,64 @@ fn overlay_keys(config: &Config) -> Option<Vec<Key>> {
     .filter(|keys| !keys.is_empty())
 }
 
-async fn run(
+fn run(app: &AppHandle, config_rx: &flume::Receiver<Config>, keybind_tx: &flume::Sender<KeyEvent>) {
+  let mut keys = app.read(|state| overlay_keys(&state.config));
+  loop {
+    let Some(active) = keys.take() else {
+      info!("Global keybinds are disabled; not reading input devices");
+      // Block until the config enables keybinds; nothing else runs meanwhile.
+      keys = loop {
+        let Ok(config) = config_rx.recv() else { return };
+        if let Some(enabled) = overlay_keys(&config) {
+          break Some(enabled);
+        }
+      };
+      continue;
+    };
+
+    match listen_until_changed(&active, app, config_rx, keybind_tx) {
+      Ok(next) => keys = next,
+      Err(flume::RecvError::Disconnected) => return,
+    }
+  }
+}
+
+/// Reads devices for `keys` until the overlay keybind changes, then drops the runtime, which
+/// closes every device. Returns the new keybind, or an error once the app stops sending config.
+fn listen_until_changed(
+  keys: &[Key],
   app: &AppHandle,
   config_rx: &flume::Receiver<Config>,
   keybind_tx: &flume::Sender<KeyEvent>,
-) {
-  let mut keys = app.read(|state| overlay_keys(&state.config));
-  if keys.is_none() {
-    info!("Global keybinds are disabled; not reading input devices");
-  }
+) -> Result<Option<Vec<Key>>, flume::RecvError> {
+  let runtime = match tokio::runtime::Builder::new_current_thread()
+    .enable_io()
+    .enable_time()
+    .build()
+  {
+    Ok(runtime) => runtime,
+    Err(e) => {
+      warn!("Could not start the keybind runtime: {e}");
+      return config_rx.recv().map(|config| overlay_keys(&config));
+    }
+  };
 
-  loop {
-    let listening = async {
-      match &keys {
-        Some(keys) => listen(keys.clone(), app.recording_keybind(), keybind_tx).await,
-        None => std::future::pending().await,
-      }
-    };
-    tokio::select! {
-      () = listening => keys = None,
-      config = config_rx.recv_async() => {
-        let Ok(config) = config else { return };
-        let new_keys = overlay_keys(&config);
-        if new_keys != keys {
-          debug!("Overlay keybind changed to {new_keys:?}");
-          keys = new_keys;
+  runtime.block_on(async {
+    let mut listening = std::pin::pin!(listen(keys.to_vec(), app.recording_keybind(), keybind_tx));
+    let mut finished = false;
+    loop {
+      tokio::select! {
+        () = &mut listening, if !finished => finished = true,
+        config = config_rx.recv_async() => {
+          let new_keys = overlay_keys(&config?);
+          if new_keys.as_deref() != Some(keys) {
+            debug!("Overlay keybind changed to {new_keys:?}");
+            return Ok(new_keys);
+          }
         }
       }
     }
-  }
+  })
 }
 
 /// Reads every device that can send one of `keys` until the future is dropped, which closes
