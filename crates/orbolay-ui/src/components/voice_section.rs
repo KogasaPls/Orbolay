@@ -41,22 +41,18 @@ impl Component for VoiceSection {
     );
     let is_right_aligned = x == Axis::End;
 
-    let mut sorted_users = self.voice_users.clone();
-    sorted_users.sort_by(|a, b| a.id.cmp(&b.id));
-
-    // Filter users based on display_voice_members
-    let filtered_users: Vec<_> = sorted_users
-      .into_iter()
+    let shown_users = self
+      .voice_users
+      .iter()
       .filter(|user| match self.display_voice_members {
         DisplayVoiceMembers::Always | DisplayVoiceMembers::AlwaysSemiTransparent => true,
         DisplayVoiceMembers::WhenSpeaking => user.speech != Speech::Silent || self.is_open,
-      })
-      .collect();
+      });
 
     let now = Instant::now();
 
     rect().child(ContextMenuViewer::new()).child(
-      filtered_users.iter().fold(
+      shown_users.fold(
         rect()
           .direction(Direction::Vertical)
           .cross_align(to_alignment(x))

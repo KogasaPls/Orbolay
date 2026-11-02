@@ -37,6 +37,7 @@ pub struct Call {
   pub channel_id: String,
   /// `None` for direct message and group calls.
   pub guild_id: Option<String>,
+  /// Sorted by user ID, so the overlay lists members in a stable order.
   pub members: Vec<User>,
 }
 
@@ -77,7 +78,7 @@ impl AppState {
     }
   }
 
-  /// Members of the current call, empty outside a call.
+  /// Members of the current call sorted by user ID, empty outside a call.
   pub fn members(&self) -> &[User] {
     self.call.as_ref().map_or(&[], |call| &call.members)
   }
@@ -105,10 +106,12 @@ impl AppState {
         guild_id,
         channel_id,
       } => {
+        let mut members: Vec<_> = states.into_iter().map(User::joined).collect();
+        members.sort_by(|a, b| a.id.cmp(&b.id));
         self.call = Some(Call {
           channel_id,
           guild_id,
-          members: states.into_iter().map(User::joined).collect(),
+          members,
         });
       }
       BridgeEvent::VoiceStateUpdate { state } => self.update_member(state),
@@ -148,7 +151,10 @@ impl AppState {
     }
     match call.members.iter_mut().find(|u| u.id == state.user_id) {
       Some(user) => user.update(state),
-      None if state.username.is_some() => call.members.push(User::joined(state)),
+      None if state.username.is_some() => {
+        let at = call.members.partition_point(|user| user.id < state.user_id);
+        call.members.insert(at, User::joined(state));
+      }
       None => {}
     }
   }
@@ -628,6 +634,16 @@ mod tests {
     );
     let peer = state.members().iter().find(|u| u.id == "peer").unwrap();
     assert!((peer.volume - 150.).abs() < f32::EPSILON);
+  }
+
+  #[test]
+  fn members_stay_sorted_by_id() {
+    let mut state = joined();
+    let now = Instant::now();
+    state.apply(update(member("alpha")), now);
+    state.apply(update(member("zulu")), now);
+    let ids: Vec<_> = state.members().iter().map(|u| u.id.as_str()).collect();
+    assert_eq!(ids, ["alpha", "me", "peer", "zulu"]);
   }
 
   #[test]

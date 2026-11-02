@@ -125,7 +125,6 @@ impl Component for GuildLabel {
   }
 }
 
-#[derive(PartialEq)]
 pub struct Soundboard {
   pub app: AppHandle,
   pub soundboard: Arc<SoundboardState>,
@@ -133,6 +132,20 @@ pub struct Soundboard {
   pub has_nitro: bool,
   pub theme: Theme,
   pub ui_scale: UiScale,
+}
+
+impl PartialEq for Soundboard {
+  /// The UI's state snapshot keeps every soundboard `Arc` it rendered alive, so the state's
+  /// `Arc::make_mut` must allocate a new one for any later change: a pointer seen here is never
+  /// modified in place, and an unchanged pointer means unchanged sounds.
+  fn eq(&self, other: &Self) -> bool {
+    self.app == other.app
+      && Arc::ptr_eq(&self.soundboard, &other.soundboard)
+      && self.current_guild_id == other.current_guild_id
+      && self.has_nitro == other.has_nitro
+      && self.theme == other.theme
+      && self.ui_scale == other.ui_scale
+  }
 }
 
 impl Component for Soundboard {
