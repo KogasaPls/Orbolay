@@ -62,17 +62,12 @@ fn open_templates_folder() {
   }
 }
 
-pub fn apply_config(
-  app: &AppHandle,
-  mut local_config: State<Config>,
-  update: impl FnOnce(&mut Config),
-) {
+/// Changes the shared config, which the open settings window follows, and saves it.
+pub fn apply_config(app: &AppHandle, update: impl FnOnce(&mut Config)) {
   let updated = app.set_config(update);
-
   if let Err(err) = save_config(&updated) {
     warn!("Failed to save config.json: {err}");
   }
-  local_config.set(updated);
 }
 
 fn divider() -> impl IntoElement {
@@ -174,7 +169,6 @@ impl Section {
 
 pub struct Settings {
   pub app: AppHandle,
-  pub local_config: State<Config>,
   pub config: Config,
   pub standalone: bool,
 }
@@ -193,11 +187,7 @@ impl Settings {
 
   fn updater<T: 'static>(&self, update: impl Fn(&mut Config, T) + 'static) -> EventHandler<T> {
     let app = self.app.clone();
-    let local_config = self.local_config;
-
-    EventHandler::new(move |value| {
-      apply_config(&app, local_config, |cfg| update(cfg, value));
-    })
+    EventHandler::new(move |value| apply_config(&app, |cfg| update(cfg, value)))
   }
 
   fn toggle(

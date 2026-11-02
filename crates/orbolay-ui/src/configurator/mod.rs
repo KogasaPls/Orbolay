@@ -101,8 +101,20 @@ fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {
   let recording = recording_flag.clone();
   use_provide_context(move || recording_flag);
 
-  let local_config = use_state(|| app.read(|state| state.config.clone()));
-  let mut reset_version = use_state(|| 0usize);
+  // The window shows the shared config and follows every change to it, including edits made
+  // to config.json while the window is open
+  let mut config = use_state(|| app.read(|state| state.config.clone()));
+  use_hook({
+    let app = app.clone();
+    move || {
+      let changes = app.subscribe_config();
+      spawn(async move {
+        while let Ok(changed) = changes.recv_async().await {
+          config.set(changed);
+        }
+      });
+    }
+  });
   let section = use_state(|| Section::General);
   let window_id = use_hook(Platform::window_id);
 
@@ -111,17 +123,13 @@ fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {
 
   let on_reset = EventHandler::new({
     let app = app.clone();
-    move |()| {
-      apply_config(&app, local_config, |cfg| *cfg = Config::default());
-      reset_version.set(reset_version() + 1);
-    }
+    move |()| apply_config(&app, |cfg| *cfg = Config::default())
   });
 
   let current = section();
   let settings = Settings {
     app,
-    local_config,
-    config: local_config.read().clone(),
+    config: config.read().clone(),
     standalone,
   };
 
@@ -159,7 +167,7 @@ fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {
     .child(sidebar(section, on_reset, close))
     .child(
       ScrollView::new()
-        .key((current, reset_version()))
+        .key(current)
         .width(Size::flex(1.))
         .child(page),
     )

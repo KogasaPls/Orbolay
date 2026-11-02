@@ -19,15 +19,15 @@ pub fn keys_display(keys: &[Key]) -> String {
 
 #[derive(PartialEq, Clone)]
 pub struct KeybindControl {
-  initial: Vec<Key>,
+  value: Vec<Key>,
   on_change: EventHandler<Vec<Key>>,
   enabled: bool,
 }
 
 impl KeybindControl {
-  pub fn new(initial: Vec<Key>, on_change: EventHandler<Vec<Key>>, enabled: bool) -> Self {
+  pub fn new(value: Vec<Key>, on_change: EventHandler<Vec<Key>>, enabled: bool) -> Self {
     Self {
-      initial,
+      value,
       on_change,
       enabled,
     }
@@ -49,6 +49,16 @@ impl Component for KeybindControl {
 
     let recording_flag = use_try_consume::<Arc<AtomicBool>>();
 
+    // Closing the window while recording must not leave the overlay keybind disabled
+    use_drop({
+      let recording_flag = recording_flag.clone();
+      move || {
+        if let Some(flag) = &recording_flag {
+          flag.store(false, Ordering::Relaxed);
+        }
+      }
+    });
+
     use_side_effect(move || {
       let is_focused = focus_status.read().is_focused();
       if let Some(flag) = &recording_flag {
@@ -66,7 +76,6 @@ impl Component for KeybindControl {
     let mut pressing = use_state(Vec::<Key>::new);
     // All keys pressed in the current recording session
     let mut candidate = use_state(Vec::<Key>::new);
-    let mut recorded = use_state(|| self.initial.clone());
 
     let on_change = self.on_change.clone();
 
@@ -117,7 +126,6 @@ impl Component for KeybindControl {
       if pressing.read().is_empty() {
         let keys = candidate.read().clone();
         if !keys.is_empty() {
-          recorded.write().clone_from(&keys);
           *candidate.write() = vec![];
           on_change.call(keys);
         }
@@ -126,12 +134,12 @@ impl Component for KeybindControl {
 
     let is_focused = focus_status.read().is_focused();
     let candidate_keys = candidate.read().clone();
-    let recorded_keys = recorded.read().clone();
+    let recorded_keys = &self.value;
 
     let (display_text, is_placeholder) = if is_focused && !candidate_keys.is_empty() {
       (keys_display(&candidate_keys), false)
     } else if !recorded_keys.is_empty() {
-      (keys_display(&recorded_keys), false)
+      (keys_display(recorded_keys), false)
     } else if is_focused {
       ("Press keys...".into(), true)
     } else {

@@ -4,13 +4,13 @@ use crate::{configurator::commit::use_commit_on_blur, util::theme};
 
 #[derive(PartialEq, Clone)]
 pub struct ColorPickerControl {
-  initial: Color,
+  value: Color,
   on_change: EventHandler<Color>,
 }
 
 impl ColorPickerControl {
-  pub fn new(initial: Color, on_change: EventHandler<Color>) -> Self {
-    Self { initial, on_change }
+  pub fn new(value: Color, on_change: EventHandler<Color>) -> Self {
+    Self { value, on_change }
   }
 }
 
@@ -18,22 +18,19 @@ impl Component for ColorPickerControl {
   fn render(&self) -> impl IntoElement {
     let input_id = use_a11y();
     let on_change = self.on_change.clone();
-    let mut value = use_state(|| self.initial);
-    let mut hex_value = use_state(|| theme::to_hex(self.initial));
+    let value = self.value;
+    let mut hex_value = use_state(|| theme::to_hex(value));
 
-    let apply_color = move |color: Color| {
-      value.set(color);
-      hex_value.set(theme::to_hex(color));
-      on_change.call(color);
-    };
-
+    use_side_effect_with_deps(&value, move |value| {
+      hex_value.set_if_modified(theme::to_hex(*value));
+    });
     use_commit_on_blur(input_id, hex_value, {
-      let mut apply_color = apply_color.clone();
+      let on_change = on_change.clone();
       move |hex| {
         if let Some(color) = theme::from_hex(&hex)
-          && color != *value.peek()
+          && color != value
         {
-          apply_color(color);
+          on_change.call(color);
         }
       }
     });
@@ -49,7 +46,7 @@ impl Component for ColorPickerControl {
           .child(
             rect()
               .margin(Gaps::new_all(1.))
-              .child(ColorPicker::new(apply_color).value(*value.read())),
+              .child(ColorPicker::new(move |color| on_change.call(color)).value(value)),
           ),
       )
       .child(
