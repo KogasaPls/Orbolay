@@ -93,4 +93,5 @@ winit = { workspace = true }
 x11rb = { workspace = true }
 
 [dev-dependencies]
+env_filter = "2"
 tokio-tungstenite = { workspace = true, features = ["connect"] }

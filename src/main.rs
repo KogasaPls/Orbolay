@@ -201,12 +201,13 @@ fn main() {
   );
 }
 
+/// Directive names match module paths by prefix, so `orbolay` also covers every `orbolay_*` crate.
+const DEFAULT_LOG_FILTER: &str = "warn,orbolay=info";
+
 /// Logs Orbolay's own crates at `info` and dependencies at `warn` unless `RUST_LOG` overrides it.
 fn init_logging() {
-  const DEFAULT_FILTER: &str = "warn,orbolay=info,orbolay_core=info,orbolay_keys=info,orbolay_ui=info";
-
   let mut builder =
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(DEFAULT_FILTER));
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(DEFAULT_LOG_FILTER));
   if std::env::var_os("JOURNAL_STREAM").is_some() {
     builder.format_timestamp(None);
   }
@@ -447,4 +448,32 @@ fn start_background(
   }
 
   config_watcher::start(app.clone());
+}
+
+#[cfg(test)]
+mod tests {
+  use log::{Level, Metadata};
+
+  use super::DEFAULT_LOG_FILTER;
+
+  fn enabled(target: &str, level: Level) -> bool {
+    let filter = env_filter::Builder::new().parse(DEFAULT_LOG_FILTER).build();
+    filter.enabled(&Metadata::builder().target(target).level(level).build())
+  }
+
+  #[test]
+  fn default_log_filter_covers_every_orbolay_crate() {
+    for target in [
+      module_path!(),
+      "orbolay::bridge",
+      "orbolay_core::config",
+      "orbolay_keys",
+      "orbolay_ui::util::html_template",
+    ] {
+      assert!(enabled(target, Level::Info), "{target}");
+      assert!(!enabled(target, Level::Debug), "{target}");
+    }
+    assert!(!enabled("tokio_tungstenite::compat", Level::Info));
+    assert!(enabled("tokio_tungstenite::compat", Level::Warn));
+  }
 }

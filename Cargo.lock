@@ -4024,6 +4024,7 @@ name = "orbolay"
 version = "4.3.0"
 dependencies = [
  "dirs",
+ "env_filter",
  "env_logger",
  "evdev",
  "flume",
