@@ -22,7 +22,8 @@ pub struct User {
   pub muted: bool,
   pub deafened: bool,
   pub speech: Speech,
-  pub playing_sound: bool,
+  /// Soundboard playback, which lingers like speech.
+  pub sound: Speech,
   pub streaming: bool,
   pub camera: bool,
   pub volume: f32,
@@ -39,7 +40,21 @@ pub enum Speech {
   },
 }
 
+/// Something a member does that is shown while active and for a grace period after.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Activity {
+  Speech,
+  Sound,
+}
+
 impl User {
+  pub const fn activity_mut(&mut self, activity: Activity) -> &mut Speech {
+    match activity {
+      Activity::Speech => &mut self.speech,
+      Activity::Sound => &mut self.sound,
+    }
+  }
+
   pub const fn voice_state(&self) -> UserVoiceState {
     if self.deafened {
       UserVoiceState::Deafened
@@ -72,7 +87,7 @@ impl User {
       muted: state.mute,
       deafened: state.deaf,
       speech: Speech::Silent,
-      playing_sound: false,
+      sound: Speech::Silent,
       streaming: state.streaming,
       camera: state.camera,
       volume: state.volume.map_or(100., local_volume),

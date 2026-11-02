@@ -407,7 +407,7 @@ impl Settings {
           self.number(
             "Speaking Grace Period (ms)",
             Some(
-              "How long users keep showing after they stop talking, up to 5000. Values below 300 may flicker",
+              "How long users keep showing after they stop talking or a soundboard sound ends, up to 5000. Values below 300 may flicker",
             ),
             config.speaking_grace_ms,
             |cfg, n: u32| cfg.speaking_grace_ms = n,

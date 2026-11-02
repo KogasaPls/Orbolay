@@ -1,6 +1,6 @@
 use orbolay_core::{
   config::USER_TEMPLATES,
-  user::{User, UserVoiceState},
+  user::{Speech, User, UserVoiceState},
 };
 
 use crate::util::{
@@ -108,7 +108,7 @@ fn user_template_classes(user: &User, is_self: bool) -> Vec<&'static str> {
     UserVoiceState::NotSpeaking => {}
   }
 
-  if user.playing_sound {
+  if user.sound != Speech::Silent {
     classes.push("soundboard");
   }
 
@@ -162,7 +162,7 @@ mod tests {
       muted,
       deafened: false,
       speech: Speech::Silent,
-      playing_sound: false,
+      sound: Speech::Silent,
       streaming: true,
       camera: false,
       volume: 100.,
@@ -194,7 +194,7 @@ mod tests {
   #[test]
   fn a_member_playing_a_sound_gets_the_soundboard_class() {
     let mut member = user(Some("abc"), false);
-    member.playing_sound = true;
+    member.sound = Speech::Speaking;
     let html = render(&member, false, false);
     assert!(html.contains(r#"class="soundboard streaming""#), "{html}");
   }

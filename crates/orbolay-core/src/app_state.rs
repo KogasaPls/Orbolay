@@ -8,7 +8,7 @@ use std::{
 use crate::{
   config::Config,
   protocol::{BridgeCommand, BridgeEvent, MemberState, Notification, SoundboardSoundPayload},
-  user::{Speech, User},
+  user::{Activity, Speech, User},
 };
 
 /// How long a notification stays on screen.
@@ -63,9 +63,10 @@ pub struct Timer {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TimerKind {
-  /// End the speaking grace period that was set to expire at the timer's `at`.
+  /// End the grace period of a member's activity that was set to expire at the timer's `at`.
   GraceEnd {
     user_id: String,
+    activity: Activity,
   },
   ExpireMessages,
 }
@@ -116,10 +117,10 @@ impl AppState {
       }
       BridgeEvent::VoiceStateUpdate { state } => self.update_member(state),
       BridgeEvent::Speaking { user_id, speaking } => {
-        return self.set_speaking(&user_id, speaking, now);
+        return self.set_active(&user_id, Activity::Speech, speaking, now);
       }
       BridgeEvent::SoundboardPlaying { user_id, playing } => {
-        self.member_mut(&user_id)?.playing_sound = playing;
+        return self.set_active(&user_id, Activity::Sound, playing, now);
       }
       BridgeEvent::ChannelLeft => self.call = None,
       BridgeEvent::MessageNotification { mut message } => {
@@ -167,27 +168,35 @@ impl AppState {
     call.members.iter_mut().find(|user| user.id == user_id)
   }
 
-  /// Starts or stops a member speaking. Stopping keeps them shown as speaking for the grace
-  /// period, ended by the returned timer.
-  fn set_speaking(&mut self, user_id: &str, speaking: bool, now: Instant) -> Option<Timer> {
+  /// Starts or stops a member's activity. Stopping keeps it shown for the grace period, ended by
+  /// the returned timer.
+  fn set_active(
+    &mut self,
+    user_id: &str,
+    activity: Activity,
+    active: bool,
+    now: Instant,
+  ) -> Option<Timer> {
     let grace = Duration::from_millis(u64::from(self.config.speaking_grace_ms));
     let user = self.member_mut(user_id)?;
-    match (speaking, user.speech) {
+    let state = user.activity_mut(activity);
+    match (active, *state) {
       (true, _) => {
-        user.speech = Speech::Speaking;
+        *state = Speech::Speaking;
         None
       }
       (false, Speech::Speaking) if grace.is_zero() => {
-        user.speech = Speech::Silent;
+        *state = Speech::Silent;
         None
       }
       (false, Speech::Speaking) => {
         let until = now + grace;
-        user.speech = Speech::Grace { until };
+        *state = Speech::Grace { until };
         Some(Timer {
           at: until,
           kind: TimerKind::GraceEnd {
             user_id: user.id.clone(),
+            activity,
           },
         })
       }
@@ -213,14 +222,15 @@ impl AppState {
   /// Applies a due timer and reports whether anything visible changed.
   pub fn fire(&mut self, timer: &Timer, now: Instant) -> bool {
     match &timer.kind {
-      TimerKind::GraceEnd { user_id } => {
-        let Some(user) = self
+      TimerKind::GraceEnd { user_id, activity } => {
+        let Some(state) = self
           .member_mut(user_id)
-          .filter(|user| user.speech == Speech::Grace { until: timer.at })
+          .map(|user| user.activity_mut(*activity))
+          .filter(|state| **state == Speech::Grace { until: timer.at })
         else {
           return false;
         };
-        user.speech = Speech::Silent;
+        *state = Speech::Silent;
         true
       }
       TimerKind::ExpireMessages => {
@@ -392,7 +402,7 @@ mod tests {
   use crate::{
     config::Config,
     protocol::{BridgeEvent, MemberState, Notification, SoundboardSoundPayload},
-    user::{User, UserVoiceState},
+    user::{Activity, Speech, User, UserVoiceState},
   };
 
   const GRACE: Duration = Duration::from_millis(300);
@@ -451,6 +461,7 @@ mod tests {
       at,
       kind: TimerKind::GraceEnd {
         user_id: "peer".into(),
+        activity: Activity::Speech,
       },
     }
   }
@@ -640,28 +651,40 @@ mod tests {
   }
 
   #[test]
-  fn soundboard_events_mark_members_in_the_call() {
+  fn soundboard_playback_lingers_like_speech() {
     let mut state = joined();
     let now = Instant::now();
     let playing = |user_id: &str, playing| BridgeEvent::SoundboardPlaying {
       user_id: user_id.into(),
       playing,
     };
-    let peer = |state: &AppState| {
+    let sound = |state: &AppState| {
       state
         .members()
         .iter()
         .find(|u| u.id == "peer")
         .unwrap()
-        .playing_sound
+        .sound
+    };
+    let end = Timer {
+      at: now + GRACE,
+      kind: TimerKind::GraceEnd {
+        user_id: "peer".into(),
+        activity: Activity::Sound,
+      },
     };
 
     assert_eq!(state.apply(playing("peer", true), now), None);
-    assert!(peer(&state));
-    state.apply(playing("peer", false), now);
-    assert!(!peer(&state));
-    state.apply(playing("stranger", true), now);
-    assert!(state.members().iter().all(|u| !u.playing_sound));
+    assert_eq!(sound(&state), Speech::Speaking);
+    assert_eq!(state.apply(playing("peer", false), now), Some(end.clone()));
+    assert_eq!(sound(&state), Speech::Grace { until: now + GRACE });
+    assert!(
+      !state.fire(&grace_end(now + GRACE), now + GRACE),
+      "speech timers leave sounds alone"
+    );
+    assert!(state.fire(&end, now + GRACE));
+    assert_eq!(sound(&state), Speech::Silent);
+    assert_eq!(state.apply(playing("stranger", true), now), None);
   }
 
   #[test]
