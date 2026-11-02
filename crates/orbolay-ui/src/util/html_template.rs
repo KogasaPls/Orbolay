@@ -201,6 +201,26 @@ pub fn preprocess(spec: &TemplateSpec, raw: &str) -> Result<Template, String> {
   })
 }
 
+/// Replaces each `{{token}}` in `html` with its value in one pass, so text inside a value, such
+/// as a username containing `{{name}}`, is never treated as a token.
+pub fn fill(html: &str, values: &[(&str, &str)]) -> String {
+  let mut out = String::with_capacity(html.len());
+  let mut rest = html;
+  while let Some(start) = rest.find("{{") {
+    out.push_str(&rest[..start]);
+    let tail = &rest[start..];
+    if let Some((token, value)) = values.iter().find(|(token, _)| tail.starts_with(token)) {
+      out.push_str(value);
+      rest = &tail[token.len()..];
+    } else {
+      out.push_str("{{");
+      rest = &tail[2..];
+    }
+  }
+  out.push_str(rest);
+  out
+}
+
 pub fn escape_html(input: &str) -> String {
   input
     .replace('&', "&amp;")
@@ -279,7 +299,7 @@ pub fn theme_decls(theme: &Theme) -> String {
 
 #[cfg(test)]
 mod tests {
-  use super::{TemplateSpec, merge_classes, preprocess};
+  use super::{TemplateSpec, fill, merge_classes, preprocess};
 
   const SPEC: TemplateSpec = TemplateSpec {
     kind: "test",
@@ -322,6 +342,17 @@ mod tests {
     );
     assert!(rejection(r#"<div id="root">{{name}}<img src="/x.png"></div>"#).contains("<img>"));
     assert!(rejection(r#"<div id="root"></div>"#).contains("{{name}}"));
+  }
+
+  #[test]
+  fn fill_substitutes_each_token_once() {
+    assert_eq!(
+      fill(
+        "<p>{{name}} {{other}} {{unknown}} {{</p>",
+        &[("{{name}}", "{{other}}"), ("{{other}}", "x")]
+      ),
+      "<p>{{other}} x {{unknown}} {{</p>"
+    );
   }
 
   #[test]

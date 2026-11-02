@@ -3,7 +3,7 @@ use orbolay_core::{
   user::{User, UserVoiceState},
 };
 
-use crate::util::html_template::{Template, TemplateSpec, TemplateStore, escape_html};
+use crate::util::html_template::{Template, TemplateSpec, TemplateStore, escape_html, fill};
 use crate::util::theme::Theme;
 
 const NAME_TOKEN: &str = "{{name}}";
@@ -48,39 +48,36 @@ pub fn render_user(
     classes.push("right");
   }
 
-  template
-    .render_root(
-      &classes,
-      vec![("data-user-id".to_string(), user.id.clone())],
-      theme,
-    )
-    .replace(AVATAR_TOKEN, &avatar_url(user))
-    .replace(NAME_TOKEN, &escape_html(&user.name))
-    .replace(
-      VOLUME_PERCENT_TOKEN,
-      &format!("{:.0}", user.volume.clamp(0., 200.) / 2.),
-    )
-    .replace(
-      MUTED_ICON_TOKEN,
-      &status_icon(
-        user.voice_state() == UserVoiceState::Muted,
-        "muted",
-        MUTED_ICON,
+  let html = template.render_root(
+    &classes,
+    vec![("data-user-id".to_string(), user.id.clone())],
+    theme,
+  );
+  let state = user.voice_state();
+  fill(
+    &html,
+    &[
+      (AVATAR_TOKEN, &escape_html(&avatar_url(user))),
+      (NAME_TOKEN, &escape_html(&user.name)),
+      (
+        VOLUME_PERCENT_TOKEN,
+        &format!("{:.0}", user.volume.clamp(0., 200.)),
       ),
-    )
-    .replace(
-      DEAFENED_ICON_TOKEN,
-      &status_icon(
-        user.voice_state() == UserVoiceState::Deafened,
-        "deafened",
-        DEAFENED_ICON,
+      (
+        MUTED_ICON_TOKEN,
+        &status_icon(state == UserVoiceState::Muted, "muted", MUTED_ICON),
       ),
-    )
-    .replace(
-      CAMERA_ICON_TOKEN,
-      &status_icon(user.camera, "camera", CAMERA_ICON),
-    )
-    .replace(STREAMING_TOKEN, &live_indicator(user.streaming))
+      (
+        DEAFENED_ICON_TOKEN,
+        &status_icon(state == UserVoiceState::Deafened, "deafened", DEAFENED_ICON),
+      ),
+      (
+        CAMERA_ICON_TOKEN,
+        &status_icon(user.camera, "camera", CAMERA_ICON),
+      ),
+      (STREAMING_TOKEN, &live_indicator(user.streaming)),
+    ],
+  )
 }
 
 fn status_icon(active: bool, state: &str, svg: &str) -> String {
@@ -183,6 +180,15 @@ mod tests {
     assert!(html.contains("live-indicator"));
     assert!(html.contains("--border-radius: 10px;"));
     assert!(!html.contains("{{"));
+  }
+
+  #[test]
+  fn names_cannot_inject_tokens() {
+    let mut member = user("abc", false);
+    member.name = "{{muted-icon}}".into();
+    let html = render(&member, false, false);
+    assert!(html.contains("{{muted-icon}}"));
+    assert!(!html.contains("status-icon muted"));
   }
 
   #[test]

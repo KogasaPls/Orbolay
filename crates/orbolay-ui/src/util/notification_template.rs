@@ -1,6 +1,6 @@
 use orbolay_core::{dirs::NOTIFICATION_TEMPLATES, payloads::Notification, util::text::strip};
 
-use crate::util::html_template::{Template, TemplateSpec, TemplateStore, escape_html};
+use crate::util::html_template::{Template, TemplateSpec, TemplateStore, escape_html, fill};
 use crate::util::theme::Theme;
 
 const TITLE_TOKEN: &str = "{{title}}";
@@ -36,12 +36,15 @@ pub fn render_notification(
     classes.push("no-icon");
   }
 
-  template
-    .render_root(&classes, Vec::new(), theme)
-    .replace(TITLE_TOKEN, &escape_html(&notification.title))
-    .replace(BODY_TOKEN, &escape_html(&strip(&notification.body)))
-    .replace(ICON_TOKEN, &escape_html(&icon))
-    .replace(ACTIONS_TOKEN, "")
+  fill(
+    &template.render_root(&classes, Vec::new(), theme),
+    &[
+      (TITLE_TOKEN, &escape_html(&notification.title)),
+      (BODY_TOKEN, &escape_html(&strip(&notification.body))),
+      (ICON_TOKEN, &escape_html(&icon)),
+      (ACTIONS_TOKEN, ""),
+    ],
+  )
 }
 
 /// Discord gives us both full URLs and relative URLs, this handles those
