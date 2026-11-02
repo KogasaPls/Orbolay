@@ -7,7 +7,7 @@ use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use orbolay_core::{
   app_state::AppHandle,
-  payloads::Notification,
+  protocol::Notification,
   protocol::{BridgeCommand, BridgeEvent},
 };
 

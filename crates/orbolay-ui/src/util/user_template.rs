@@ -1,5 +1,5 @@
 use orbolay_core::{
-  dirs::USER_TEMPLATES,
+  config::USER_TEMPLATES,
   user::{User, UserVoiceState},
 };
 

@@ -4,8 +4,8 @@ use freya::prelude::*;
 
 use orbolay_core::{
   app_state::{AppHandle, Soundboard as SoundboardState},
-  payloads::SoundboardSoundPayload,
   protocol::BridgeCommand,
+  protocol::SoundboardSoundPayload,
 };
 
 use crate::util::{

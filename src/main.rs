@@ -5,8 +5,7 @@ use gumdrop::Options;
 use log::warn;
 use orbolay_core::{
   app_state::{AppHandle, AppState},
-  config::{Config, Corner, LoadError, load_config, save_config},
-  dirs::ensure_config_dirs,
+  config::{Config, Corner, LoadError, ensure_config_dirs, load_config, save_config},
   protocol::BridgeCommand,
 };
 use orbolay_keys::KeyEvent;

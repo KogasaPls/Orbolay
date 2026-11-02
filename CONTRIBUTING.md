@@ -24,8 +24,8 @@ the overlay is closed (with an X11 input shape, since `set_cursor_hittest` is no
 
 `AppHandle` owns the shared `AppState`. Background threads change it in two ways:
 
-* `AppHandle::apply` runs `AppState::apply` on a `BridgeEvent`. The transition is pure and returns
-  effects, such as a timer that ends a speaking grace period or expires a notification; one timer
+* `AppHandle::apply` runs `AppState::apply` on a `BridgeEvent`. The transition is pure and may
+  return a timer, such as the end of a speaking grace period or a notification's expiry; one timer
   thread fires them.
 * `AppHandle::set_config` changes the config and notifies subscribers, such as the keybind listener.
 

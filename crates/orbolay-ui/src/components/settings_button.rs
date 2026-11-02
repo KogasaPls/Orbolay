@@ -3,7 +3,7 @@ use freya::prelude::*;
 use orbolay_core::config::Corner;
 
 use crate::{
-  config::corner_position,
+  layout::corner_position,
   util::scale::{GapsScaleExt, UiScale},
 };
 

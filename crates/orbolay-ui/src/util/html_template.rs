@@ -7,7 +7,7 @@ use std::{
 };
 
 use log::warn;
-use orbolay_core::{config::config_dir, dirs::TEMPLATES_DIR};
+use orbolay_core::config::{TEMPLATES_DIR, config_dir};
 use scraper::{Html, Selector};
 
 use crate::util::theme::{GREEN, Theme, to_hex};

@@ -6,12 +6,12 @@ use orbolay_core::{
   app_state::AppHandle,
   config::{Axis, Corner, DisplayVoiceMembers, SpeakingGraceStyle},
   user::{User, UserVoiceState},
-  util::text::censor,
 };
 
 use crate::{
   components::UserRow,
-  config::{corner_gaps, to_alignment},
+  layout::{corner_gaps, to_alignment},
+  util::text::censor,
   util::{scale::UiScale, theme::Theme},
 };
 

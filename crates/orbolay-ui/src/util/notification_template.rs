@@ -1,4 +1,6 @@
-use orbolay_core::{dirs::NOTIFICATION_TEMPLATES, payloads::Notification, util::text::strip};
+use orbolay_core::{config::NOTIFICATION_TEMPLATES, protocol::Notification};
+
+use crate::util::text::strip;
 
 use crate::util::html_template::{Template, TemplateSpec, TemplateStore, escape_html, fill};
 use crate::util::theme::Theme;
@@ -64,7 +66,7 @@ fn icon_url(icon: &str) -> String {
 #[cfg(test)]
 mod tests {
   use freya::prelude::Color;
-  use orbolay_core::payloads::Notification;
+  use orbolay_core::protocol::Notification;
 
   use super::{load_notification_template, render_notification};
   use crate::util::theme::Theme;

@@ -1,10 +1,10 @@
 use freya::prelude::*;
 
-use orbolay_core::{app_state::AppHandle, config::Corner, payloads::Notification};
+use orbolay_core::{app_state::AppHandle, config::Corner, protocol::Notification};
 
 use crate::{
   components::MessageRow,
-  config::{corner_gaps, to_alignment},
+  layout::{corner_gaps, to_alignment},
   util::{scale::UiScale, theme::Theme},
 };
 

@@ -6,11 +6,11 @@ use log::warn;
 use orbolay_core::{
   app_state::AppHandle,
   config::{Config, Corner, DisplayVoiceMembers, SpeakingGraceStyle, config_dir, save_config},
-  dirs::{TEMPLATES_DIR, ensure_config_dirs},
-  monitors::monitors_list,
-  payloads::Notification,
+  config::{TEMPLATES_DIR, ensure_config_dirs},
+  protocol::Notification,
 };
 
+use crate::monitors::monitors_list;
 use crate::util::theme::{DARKISH_GRAY, LIGHT_GRAY, SUPERLIGHT_GRAY, from_tuple, to_tuple};
 use crate::util::{
   notification_template::list_notification_templates, user_template::list_user_templates,
