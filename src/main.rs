@@ -10,7 +10,7 @@ use orbolay_core::{
 };
 use orbolay_ui::{
   components::{MessagesSection, SettingsButton, Soundboard, VoiceControls, VoiceSection},
-  open_configurator, open_configurator_standalone, populate_monitor_cache,
+  open_configurator, open_configurator_standalone,
   util::{scale::UiScale, theme},
   view::OverlayView,
 };
@@ -185,8 +185,6 @@ fn main() {
           .with_window_attributes(move |mut w, event_loop| {
             let monitors: Vec<_> = event_loop.available_monitors().collect();
             let primary = event_loop.primary_monitor();
-
-            populate_monitor_cache(primary.as_ref(), &monitors);
 
             if let Some(monitor) = select_monitor(&config, primary.as_ref(), &monitors) {
               // Compute the initial window size for the chosen display.

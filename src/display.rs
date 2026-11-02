@@ -1,7 +1,6 @@
 use freya::prelude::{Platform, WinitPlatformExt};
 use log::warn;
 use orbolay_core::config::Config;
-use orbolay_ui::populate_monitor_cache;
 use winit::{dpi::PhysicalSize, monitor::MonitorHandle};
 
 use crate::window::WINDOW_ID;
@@ -33,8 +32,6 @@ pub fn update_monitor(config: &Config) {
   Platform::get().with_window(window_id, move |w| {
     let monitors: Vec<_> = w.available_monitors().collect();
     let primary = w.primary_monitor();
-
-    populate_monitor_cache(primary.as_ref(), &monitors);
 
     let Some(monitor) = select_monitor(&config, primary.as_ref(), &monitors) else {
       return;

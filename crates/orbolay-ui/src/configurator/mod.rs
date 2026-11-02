@@ -9,7 +9,7 @@ use sections::{Section, Settings, apply_config};
 use sidebar::sidebar;
 
 use crate::{
-  populate_monitor_cache,
+  monitors::populate_monitor_cache,
   util::theme::{GRAY, MUTED_GRAY},
 };
 
