@@ -2,10 +2,7 @@ use freya::{
   html::{HtmlSource, HtmlViewer, use_html},
   prelude::*,
 };
-use orbolay_core::{
-  app_state::AppHandle,
-  user::{User, UserVoiceState},
-};
+use orbolay_core::{app_state::AppHandle, user::User};
 
 use crate::{
   components::user_context_menu_item::UserContextMenuItem,
@@ -17,17 +14,12 @@ use crate::{
 };
 
 #[derive(PartialEq, Clone)]
-#[expect(
-  clippy::struct_excessive_bools,
-  reason = "component props are independent display flags"
-)]
 pub struct UserRow {
   pub app: AppHandle,
   pub user: User,
   pub is_self: bool,
-  pub is_open: bool,
-  pub is_voice_semitransparent: bool,
-  pub can_context_menu: bool,
+  /// Drawn at half opacity because the member is quiet and the list is semi-transparent.
+  pub faded: bool,
   pub theme: Theme,
   pub box_size: (u32, u32),
   pub user_template: Option<String>,
@@ -45,14 +37,7 @@ impl Component for UserRow {
     let scale = self.ui_scale;
     let width = scale.px(self.box_size.0 as f32);
     let height = scale.px(self.box_size.1 as f32);
-    let opacity = if self.user.voice_state() != UserVoiceState::Speaking
-      && self.is_voice_semitransparent
-      && !self.is_open
-    {
-      0.5_f32
-    } else {
-      1.0_f32
-    };
+    let opacity = if self.faded { 0.5_f32 } else { 1.0_f32 };
 
     let handle = use_html(|| HtmlSource::html(String::new()));
     let deps = (
@@ -91,7 +76,7 @@ impl Component for UserRow {
           .scale(self.ui_scale.factor())
           .child(HtmlViewer::new(handle)),
       )
-      .maybe(self.can_context_menu, |el| {
+      .maybe(!self.is_self, |el| {
         el.on_secondary_down({
           let user = self.user.clone();
           let theme = self.theme;

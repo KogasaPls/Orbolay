@@ -82,20 +82,15 @@ impl Component for VoiceSection {
           }
 
           let is_self = self.self_id == u.id;
-          let can_context_menu = !is_self;
-          let is_voice_semitransparent = dimmed
-            || matches!(
-              self.display_voice_members,
-              DisplayVoiceMembers::AlwaysSemiTransparent
-            );
+          let faded = !self.is_open
+            && u.voice_state() != UserVoiceState::Speaking
+            && (dimmed || self.display_voice_members == DisplayVoiceMembers::AlwaysSemiTransparent);
 
           let row: Element = UserRow {
             app: self.app.clone(),
             user: u,
             is_self,
-            is_open: self.is_open,
-            is_voice_semitransparent,
-            can_context_menu,
+            faded,
             theme: self.theme,
             box_size: self.user_template_size,
             user_template: self.user_template.clone(),
