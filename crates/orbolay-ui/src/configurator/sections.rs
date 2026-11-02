@@ -5,7 +5,10 @@ use freya::prelude::*;
 use log::warn;
 use orbolay_core::{
   app_state::AppHandle,
-  config::{Config, DisplayVoiceMembers, config_dir, save_config},
+  config::{
+    Config, Corner, DisplayVoiceMembers, MAX_SPEAKING_GRACE_MS, SpeakingGraceStyle, config_dir,
+    save_config,
+  },
   dirs::{TEMPLATES_DIR, ensure_config_dirs},
   monitors::monitors_list,
   payloads::Notification,
@@ -16,7 +19,7 @@ use crate::util::{
   notification_template::list_notification_templates, user_template::list_user_templates,
 };
 
-use orbolay_keys::{DEFAULT_OVERLAY_TOGGLE, keys_to_strings, strings_to_keys};
+use orbolay_keys::{keys_to_strings, strings_to_keys};
 
 use super::buttons::wide_button;
 use super::keybind::KeybindControl;
@@ -24,22 +27,6 @@ use super::{
   color_picker::ColorPickerControl, dropdown::DropdownControl, input::InputControl,
   setting::SettingRow, toggle::ToggleControl,
 };
-
-const ALIGNMENTS: &[&str] = &[
-  "topleft",
-  "topright",
-  "bottomleft",
-  "bottomright",
-  "topcenter",
-  "bottomcenter",
-  "centerleft",
-  "centerright",
-];
-
-const VOICE_DISPLAY_OPTIONS: &[&str] =
-  &["always", "always (semi-transparent)", "only when speaking"];
-
-const GRACE_STYLE_OPTIONS: &[&str] = &["as speaking", "dimmed"];
 
 const UI_SCALE_OPTIONS: &[f32] = &[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
@@ -49,15 +36,16 @@ fn ui_scale_label(scale: f32) -> String {
   format!("{:.0}%", scale * 100.0)
 }
 
-fn to_options(values: &[&str]) -> Vec<String> {
-  values.iter().map(ToString::to_string).collect()
-}
-
-fn option_index(options: &[&str], value: &str) -> usize {
-  options
-    .iter()
-    .position(|option| *option == value)
-    .unwrap_or(0)
+/// Dropdown labels for every value of a settings enum and the position of `current`.
+fn choices<T: Copy + PartialEq>(
+  all: &[T],
+  current: T,
+  label: fn(T) -> &'static str,
+) -> (Vec<String>, usize) {
+  (
+    all.iter().map(|value| label(*value).to_string()).collect(),
+    all.iter().position(|value| *value == current).unwrap_or(0),
+  )
 }
 
 fn open_templates_folder() {
@@ -84,7 +72,9 @@ pub fn apply_config(
     state.config.clone()
   });
 
-  save_config(&updated);
+  if let Err(err) = save_config(&updated) {
+    warn!("Failed to save config.json: {err}");
+  }
   local_config.set(updated);
 }
 
@@ -283,19 +273,35 @@ impl Settings {
     )
   }
 
+  fn choice<T: Copy + PartialEq + 'static>(
+    &self,
+    name: &str,
+    description: &str,
+    all: &'static [T],
+    current: T,
+    label: fn(T) -> &'static str,
+    update: impl Fn(&mut Config, T) + 'static,
+  ) -> Element {
+    let (options, selected) = choices(all, current, label);
+    self.dropdown(name, description, options, selected, move |cfg, idx| {
+      update(cfg, all[idx]);
+    })
+  }
+
   fn alignment(
     &self,
     name: &str,
     description: &str,
-    value: &str,
-    update: impl Fn(&mut Config, String) + 'static,
+    value: Corner,
+    update: impl Fn(&mut Config, Corner) + 'static,
   ) -> Element {
-    self.dropdown(
+    self.choice(
       name,
       description,
-      to_options(ALIGNMENTS),
-      option_index(ALIGNMENTS, value),
-      move |cfg, idx| update(cfg, ALIGNMENTS[idx].to_string()),
+      &Corner::ALL,
+      value,
+      Corner::label,
+      update,
     )
   }
 
@@ -321,11 +327,8 @@ impl Settings {
 
   fn keybind_group(&self) -> Element {
     let config = &self.config;
-    let enabled = config.is_keybind_enabled.unwrap_or(true);
-    let keys = config.overlay_keybind.as_deref().map_or_else(
-      || strings_to_keys(&DEFAULT_OVERLAY_TOGGLE.get()),
-      strings_to_keys,
-    );
+    let enabled = config.keybind_enabled;
+    let keys = strings_to_keys(&config.overlay_keybind);
 
     group(
       "Keybind",
@@ -334,14 +337,14 @@ impl Settings {
           "Enable Keybind",
           "Toggle overlay visibility with a keybind",
           enabled,
-          |cfg, value| cfg.is_keybind_enabled = Some(value),
+          |cfg, value| cfg.keybind_enabled = value,
         ),
         row(
           "Overlay Keybind",
           Some("The keybind used to open the overlay"),
           KeybindControl::new(
             keys,
-            self.updater(|cfg, keys: Vec<_>| cfg.overlay_keybind = Some(keys_to_strings(&keys))),
+            self.updater(|cfg, keys: Vec<_>| cfg.overlay_keybind = keys_to_strings(&keys)),
             enabled,
           ),
           !enabled,
@@ -400,24 +403,23 @@ impl Settings {
 
   fn voice(&self) -> Vec<Element> {
     let config = &self.config;
-    let visibility = config
-      .display_voice_members
-      .clone()
-      .unwrap_or_default()
-      .to_string();
+    let (grace_styles, grace_style) = choices(
+      &SpeakingGraceStyle::ALL,
+      config.speaking_grace_style,
+      SpeakingGraceStyle::label,
+    );
 
     vec![
       group(
         "Visibility",
         [
-          self.dropdown(
+          self.choice(
             "Display Voice Members",
             "Control when and how voice users are visible",
-            to_options(VOICE_DISPLAY_OPTIONS),
-            option_index(VOICE_DISPLAY_OPTIONS, &visibility),
-            |cfg, idx| {
-              cfg.display_voice_members = Some(VOICE_DISPLAY_OPTIONS[idx].to_string().into());
-            },
+            &DisplayVoiceMembers::ALL,
+            config.display_voice_members,
+            DisplayVoiceMembers::label,
+            |cfg, value| cfg.display_voice_members = value,
           ),
           self.number(
             "Speaking Grace Period (ms)",
@@ -426,22 +428,19 @@ impl Settings {
             ),
             config.speaking_grace_ms,
             false,
-            |cfg, n: u32| cfg.speaking_grace_ms = n.min(5000),
+            |cfg, n: u32| cfg.speaking_grace_ms = n.min(MAX_SPEAKING_GRACE_MS),
           ),
           row(
             "Grace Period Style",
             Some("How users look during the grace period. Only applies to \"only when speaking\""),
             DropdownControl::new(
-              to_options(GRACE_STYLE_OPTIONS),
-              option_index(
-                GRACE_STYLE_OPTIONS,
-                &config.speaking_grace_style.to_string(),
-              ),
+              grace_styles,
+              grace_style,
               self.updater(|cfg, idx: usize| {
-                cfg.speaking_grace_style = GRACE_STYLE_OPTIONS[idx].to_string().into();
+                cfg.speaking_grace_style = SpeakingGraceStyle::ALL[idx];
               }),
             ),
-            config.display_voice_members != Some(DisplayVoiceMembers::WhenSpeaking),
+            config.display_voice_members != DisplayVoiceMembers::WhenSpeaking,
           ),
         ],
       ),
@@ -451,8 +450,8 @@ impl Settings {
           self.alignment(
             "Voice Alignment",
             "Screen position for voice users",
-            config.user_alignment.as_deref().unwrap_or("topleft"),
-            |cfg, v| cfg.user_alignment = Some(v),
+            config.user_alignment,
+            |cfg, v| cfg.user_alignment = v,
           ),
           self.number(
             "X Offset (px)",
@@ -511,8 +510,8 @@ impl Settings {
           self.alignment(
             "Notification Alignment",
             "Screen position for notifications",
-            config.message_alignment.as_deref().unwrap_or("topright"),
-            |cfg, v| cfg.message_alignment = Some(v),
+            config.message_alignment,
+            |cfg, v| cfg.message_alignment = v,
           ),
           self.number(
             "X Offset (px)",
@@ -592,9 +591,9 @@ impl Settings {
     vec![card([self.number(
       "Websocket Port",
       Some("Port the websocket server listens on. Requires Restart."),
-      config.port.unwrap_or(6888),
+      config.port,
       false,
-      |cfg, n: u16| cfg.port = Some(n),
+      |cfg, n: u16| cfg.port = n,
     )])]
   }
 
@@ -605,8 +604,8 @@ impl Settings {
       self.toggle(
         "Force Software Renderer",
         "Use software rendering instead of hardware acceleration. Requires restart.",
-        config.software_rendering.unwrap_or(false),
-        |cfg, value| cfg.software_rendering = Some(value),
+        config.software_rendering,
+        |cfg, value| cfg.software_rendering = value,
       ),
       self.toggle(
         "Run with XWayland",

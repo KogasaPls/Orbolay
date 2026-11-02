@@ -1,10 +1,90 @@
-use std::fmt::Display;
+use std::{
+  io,
+  path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::dirs::ensure_config_dirs;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub const DEFAULT_PORT: u16 = 6888;
+pub const MAX_SPEAKING_GRACE_MS: u32 = 5000;
+
+/// A screen anchor for the voice list, notifications, or the settings button.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Corner {
+  TopLeft,
+  TopRight,
+  BottomLeft,
+  BottomRight,
+  TopCenter,
+  BottomCenter,
+  CenterLeft,
+  CenterRight,
+}
+
+/// Where along one axis an element is anchored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Axis {
+  Start,
+  Center,
+  End,
+}
+
+impl Corner {
+  pub const ALL: [Self; 8] = [
+    Self::TopLeft,
+    Self::TopRight,
+    Self::BottomLeft,
+    Self::BottomRight,
+    Self::TopCenter,
+    Self::BottomCenter,
+    Self::CenterLeft,
+    Self::CenterRight,
+  ];
+
+  pub const fn label(self) -> &'static str {
+    match self {
+      Self::TopLeft => "topleft",
+      Self::TopRight => "topright",
+      Self::BottomLeft => "bottomleft",
+      Self::BottomRight => "bottomright",
+      Self::TopCenter => "topcenter",
+      Self::BottomCenter => "bottomcenter",
+      Self::CenterLeft => "centerleft",
+      Self::CenterRight => "centerright",
+    }
+  }
+
+  /// Horizontal and vertical anchoring.
+  pub const fn axes(self) -> (Axis, Axis) {
+    match self {
+      Self::TopLeft => (Axis::Start, Axis::Start),
+      Self::TopRight => (Axis::End, Axis::Start),
+      Self::BottomLeft => (Axis::Start, Axis::End),
+      Self::BottomRight => (Axis::End, Axis::End),
+      Self::TopCenter => (Axis::Center, Axis::Start),
+      Self::BottomCenter => (Axis::Center, Axis::End),
+      Self::CenterLeft => (Axis::Start, Axis::Center),
+      Self::CenterRight => (Axis::End, Axis::Center),
+    }
+  }
+
+  /// The first screen corner not used by any of `occupied`.
+  pub fn unused(occupied: &[Self]) -> Option<Self> {
+    [
+      Self::BottomRight,
+      Self::BottomLeft,
+      Self::TopRight,
+      Self::TopLeft,
+    ]
+    .into_iter()
+    .find(|corner| !occupied.contains(corner))
+  }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum DisplayVoiceMembers {
   Always,
@@ -13,7 +93,23 @@ pub enum DisplayVoiceMembers {
   WhenSpeaking,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+impl DisplayVoiceMembers {
+  pub const ALL: [Self; 3] = [
+    Self::Always,
+    Self::AlwaysSemiTransparent,
+    Self::WhenSpeaking,
+  ];
+
+  pub const fn label(self) -> &'static str {
+    match self {
+      Self::Always => "always",
+      Self::AlwaysSemiTransparent => "always (semi-transparent)",
+      Self::WhenSpeaking => "only when speaking",
+    }
+  }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum SpeakingGraceStyle {
   #[default]
@@ -21,127 +117,172 @@ pub enum SpeakingGraceStyle {
   Dimmed,
 }
 
-impl Display for DisplayVoiceMembers {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl SpeakingGraceStyle {
+  pub const ALL: [Self; 2] = [Self::AsSpeaking, Self::Dimmed];
+
+  pub const fn label(self) -> &'static str {
     match self {
-      Self::Always => write!(f, "always"),
-      Self::AlwaysSemiTransparent => write!(f, "always (semi-transparent)"),
-      Self::WhenSpeaking => write!(f, "only when speaking"),
+      Self::AsSpeaking => "as speaking",
+      Self::Dimmed => "dimmed",
     }
   }
 }
 
-impl From<String> for DisplayVoiceMembers {
-  fn from(value: String) -> Self {
-    match value.as_ref() {
-      "always (semi-transparent)" => Self::AlwaysSemiTransparent,
-      "only when speaking" => Self::WhenSpeaking,
-      _ => Self::Always,
-    }
-  }
-}
-
-impl Display for SpeakingGraceStyle {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      Self::AsSpeaking => write!(f, "as speaking"),
-      Self::Dimmed => write!(f, "dimmed"),
-    }
-  }
-}
-
-impl From<String> for SpeakingGraceStyle {
-  fn from(value: String) -> Self {
-    match value.as_ref() {
-      "dimmed" => Self::Dimmed,
-      _ => Self::AsSpeaking,
-    }
-  }
-}
-
-#[expect(
-  clippy::unnecessary_wraps,
-  reason = "serde default for an optional field"
-)]
-fn default_overlay_keybind() -> Option<Vec<String>> {
-  Some(vec!["ControlLeft".into(), "BackQuote".into()])
-}
-
-fn default_speaking_grace_ms() -> u32 {
-  300
-}
-
-fn default_accent() -> (u8, u8, u8) {
-  (30, 31, 35)
-}
-
-fn default_text() -> (u8, u8, u8) {
-  (255, 255, 255)
-}
-
-fn default_border_radius() -> f32 {
-  10.
-}
-
-fn default_ui_scale() -> f32 {
-  1.0
-}
-
-fn default_true() -> bool {
-  true
-}
+pub type Rgb = (u8, u8, u8);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", from = "RawConfig")]
+#[expect(
+  clippy::struct_excessive_bools,
+  reason = "independent user settings, stored as JSON booleans"
+)]
 pub struct Config {
-  #[serde(default = "default_overlay_keybind")]
-  pub overlay_keybind: Option<Vec<String>>,
-  #[serde(default)]
+  pub overlay_keybind: Vec<String>,
+  #[serde(rename = "isKeybindEnabled")]
+  pub keybind_enabled: bool,
+  /// Index into the monitor list, only used by configs saved before display names existed.
   pub display_idx: Option<usize>,
-  #[serde(default)]
   pub display_name: Option<String>,
-  #[serde(default)]
-  pub port: Option<u16>,
-  #[serde(default = "default_true")]
+  pub port: u16,
   pub enable_message_notifications: bool,
-  #[serde(default)]
-  pub message_alignment: Option<String>,
-  #[serde(default)]
-  pub user_alignment: Option<String>,
-  #[serde(default)]
+  pub message_alignment: Corner,
+  pub user_alignment: Corner,
   pub message_offset_x: i32,
-  #[serde(default)]
   pub message_offset_y: i32,
-  #[serde(default)]
   pub user_offset_x: i32,
-  #[serde(default)]
   pub user_offset_y: i32,
-  #[serde(default)]
-  pub display_voice_members: Option<DisplayVoiceMembers>,
-  #[serde(default = "default_speaking_grace_ms")]
+  pub display_voice_members: DisplayVoiceMembers,
   pub speaking_grace_ms: u32,
-  #[serde(default)]
   pub speaking_grace_style: SpeakingGraceStyle,
-  #[serde(default)]
   pub messages_semitransparent: bool,
-  #[serde(default)]
-  pub is_keybind_enabled: Option<bool>,
-  #[serde(default)]
-  pub software_rendering: Option<bool>,
-  #[serde(default = "default_true")]
+  pub software_rendering: bool,
   pub xwayland: bool,
-  #[serde(default = "default_accent")]
-  pub accent: (u8, u8, u8),
-  #[serde(default = "default_text")]
-  pub text_color: (u8, u8, u8),
-  #[serde(default = "default_border_radius")]
+  pub accent: Rgb,
+  pub text_color: Rgb,
   pub border_radius: f32,
-  #[serde(default = "default_ui_scale")]
   pub ui_scale: f32,
-  #[serde(default)]
+  /// Name of a user template in the templates folder; `None` selects the built-in template.
   pub user_template: Option<String>,
-  #[serde(default)]
+  /// Name of a notification template in the templates folder; `None` selects the built-in one.
   pub notification_template: Option<String>,
+}
+
+impl Default for Config {
+  fn default() -> Self {
+    Self {
+      overlay_keybind: vec!["ControlLeft".into(), "BackQuote".into()],
+      keybind_enabled: true,
+      display_idx: None,
+      display_name: None,
+      port: DEFAULT_PORT,
+      enable_message_notifications: true,
+      message_alignment: Corner::TopRight,
+      user_alignment: Corner::TopLeft,
+      message_offset_x: 0,
+      message_offset_y: 0,
+      user_offset_x: 0,
+      user_offset_y: 0,
+      display_voice_members: DisplayVoiceMembers::default(),
+      speaking_grace_ms: 300,
+      speaking_grace_style: SpeakingGraceStyle::default(),
+      messages_semitransparent: false,
+      software_rendering: false,
+      xwayland: true,
+      accent: (30, 31, 35),
+      text_color: (255, 255, 255),
+      border_radius: 10.,
+      ui_scale: 1.0,
+      user_template: None,
+      notification_template: None,
+    }
+  }
+}
+
+/// The on-disk format, accepting missing fields, `null`s written by older versions, and
+/// unrecognized enum values, each of which falls back to the default.
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct RawConfig {
+  overlay_keybind: Option<Vec<String>>,
+  is_keybind_enabled: Option<bool>,
+  display_idx: Option<usize>,
+  display_name: Option<String>,
+  port: Option<u16>,
+  enable_message_notifications: Option<bool>,
+  message_alignment: Lenient<Corner>,
+  user_alignment: Lenient<Corner>,
+  message_offset_x: Option<i32>,
+  message_offset_y: Option<i32>,
+  user_offset_x: Option<i32>,
+  user_offset_y: Option<i32>,
+  display_voice_members: Lenient<DisplayVoiceMembers>,
+  speaking_grace_ms: Option<u32>,
+  speaking_grace_style: Lenient<SpeakingGraceStyle>,
+  messages_semitransparent: Option<bool>,
+  software_rendering: Option<bool>,
+  xwayland: Option<bool>,
+  accent: Option<Rgb>,
+  text_color: Option<Rgb>,
+  border_radius: Option<f32>,
+  ui_scale: Option<f32>,
+  user_template: Option<String>,
+  notification_template: Option<String>,
+}
+
+/// An enum value that reads as `None` when it is `null` or not a known variant.
+struct Lenient<T>(Option<T>);
+
+impl<T> Default for Lenient<T> {
+  fn default() -> Self {
+    Self(None)
+  }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for Lenient<T> {
+  fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(Self(T::deserialize(value).ok()))
+  }
+}
+
+impl From<RawConfig> for Config {
+  fn from(raw: RawConfig) -> Self {
+    let d = Self::default();
+    Self {
+      overlay_keybind: raw.overlay_keybind.unwrap_or(d.overlay_keybind),
+      keybind_enabled: raw.is_keybind_enabled.unwrap_or(d.keybind_enabled),
+      display_idx: raw.display_idx,
+      display_name: raw.display_name,
+      port: raw.port.unwrap_or(d.port),
+      enable_message_notifications: raw
+        .enable_message_notifications
+        .unwrap_or(d.enable_message_notifications),
+      message_alignment: raw.message_alignment.0.unwrap_or(d.message_alignment),
+      user_alignment: raw.user_alignment.0.unwrap_or(d.user_alignment),
+      message_offset_x: raw.message_offset_x.unwrap_or_default(),
+      message_offset_y: raw.message_offset_y.unwrap_or_default(),
+      user_offset_x: raw.user_offset_x.unwrap_or_default(),
+      user_offset_y: raw.user_offset_y.unwrap_or_default(),
+      display_voice_members: raw
+        .display_voice_members
+        .0
+        .unwrap_or(d.display_voice_members),
+      speaking_grace_ms: raw
+        .speaking_grace_ms
+        .unwrap_or(d.speaking_grace_ms)
+        .min(MAX_SPEAKING_GRACE_MS),
+      speaking_grace_style: raw.speaking_grace_style.0.unwrap_or_default(),
+      messages_semitransparent: raw.messages_semitransparent.unwrap_or_default(),
+      software_rendering: raw.software_rendering.unwrap_or_default(),
+      xwayland: raw.xwayland.unwrap_or(d.xwayland),
+      accent: raw.accent.unwrap_or(d.accent),
+      text_color: raw.text_color.unwrap_or(d.text_color),
+      border_radius: raw.border_radius.unwrap_or(d.border_radius),
+      ui_scale: raw.ui_scale.unwrap_or(d.ui_scale),
+      user_template: raw.user_template,
+      notification_template: raw.notification_template,
+    }
+  }
 }
 
 impl Config {
@@ -154,76 +295,72 @@ impl Config {
   }
 }
 
-impl Default for Config {
-  fn default() -> Self {
-    Self {
-      overlay_keybind: default_overlay_keybind(),
-      display_idx: None,
-      display_name: None,
-      port: Some(6888),
-      enable_message_notifications: true,
-      message_alignment: None,
-      user_alignment: None,
-      message_offset_x: 0,
-      message_offset_y: 0,
-      user_offset_x: 0,
-      user_offset_y: 0,
-      display_voice_members: Some(DisplayVoiceMembers::AlwaysSemiTransparent),
-      speaking_grace_ms: default_speaking_grace_ms(),
-      speaking_grace_style: SpeakingGraceStyle::AsSpeaking,
-      messages_semitransparent: false,
-      is_keybind_enabled: None,
-      software_rendering: None,
-      xwayland: true,
-      accent: default_accent(),
-      text_color: default_text(),
-      border_radius: 10.,
-      ui_scale: default_ui_scale(),
-      user_template: None,
-      notification_template: None,
+#[derive(Debug)]
+pub enum LoadError {
+  /// There is no config file yet.
+  Missing,
+  Io(io::Error),
+  Parse(serde_json::Error),
+}
+
+impl std::fmt::Display for LoadError {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Self::Missing => write!(f, "config.json does not exist"),
+      Self::Io(e) => write!(f, "could not read config.json: {e}"),
+      Self::Parse(e) => write!(f, "could not parse config.json: {e}"),
     }
   }
 }
 
-pub fn config_dir() -> Option<std::path::PathBuf> {
+pub fn config_dir() -> Option<PathBuf> {
   Some(dirs::config_dir()?.join("orbolay"))
 }
 
-pub fn save_config(config: &Config) {
+pub const CONFIG_FILE: &str = "config.json";
+
+pub fn config_path() -> Option<PathBuf> {
+  config_dir().map(|dir| dir.join(CONFIG_FILE))
+}
+
+/// Writes the config through a temporary file so readers never see a partial file.
+pub fn save_config(config: &Config) -> io::Result<()> {
   ensure_config_dirs();
-
-  let Some(dir) = config_dir() else { return };
-  if let Ok(json) = serde_json::to_string_pretty(config) {
-    std::fs::write(dir.join("config.json"), json).ok();
-  }
+  let path = config_path().ok_or_else(|| io::Error::other("no config directory"))?;
+  write_atomically(&path, serde_json::to_string_pretty(config)?.as_bytes())
 }
 
-pub fn load_config() -> Option<Config> {
-  let dir = config_dir()?;
-  let json = std::fs::read_to_string(dir.join("config.json")).ok()?;
-  serde_json::from_str(&json).ok()
+fn write_atomically(path: &Path, contents: &[u8]) -> io::Result<()> {
+  let tmp = path.with_extension("json.tmp");
+  std::fs::write(&tmp, contents)?;
+  std::fs::rename(&tmp, path)
 }
 
-pub fn is_first_run() -> bool {
-  config_dir().is_none_or(|dir| !dir.join("config.json").exists())
+pub fn load_config() -> Result<Config, LoadError> {
+  let path = config_path().ok_or(LoadError::Missing)?;
+  let json = std::fs::read_to_string(path).map_err(|e| match e.kind() {
+    io::ErrorKind::NotFound => LoadError::Missing,
+    _ => LoadError::Io(e),
+  })?;
+  serde_json::from_str(&json).map_err(LoadError::Parse)
 }
 
 #[cfg(test)]
 mod tests {
-  use super::Config;
+  use super::{Config, Corner, DisplayVoiceMembers, SpeakingGraceStyle};
   use serde_json::json;
 
   fn names(displays: &[&str]) -> impl Iterator<Item = Option<String>> {
     displays.iter().map(|name| Some((*name).to_owned()))
   }
 
+  fn parse(value: serde_json::Value) -> Config {
+    serde_json::from_value(value).unwrap()
+  }
+
   #[test]
   fn named_display_survives_monitor_reordering() {
-    let config: Config = serde_json::from_value(json!({
-      "displayName": "DP-1",
-      "displayIdx": 1
-    }))
-    .unwrap();
+    let config = parse(json!({ "displayName": "DP-1", "displayIdx": 1 }));
 
     assert_eq!(
       config.display_index(names(&["HDMI-A-1", "DP-1", "DP-2"])),
@@ -237,36 +374,96 @@ mod tests {
 
   #[test]
   fn missing_named_display_does_not_use_a_stale_index() {
-    let config: Config = serde_json::from_value(json!({
-      "displayName": "DP-1",
-      "displayIdx": 1
-    }))
-    .unwrap();
-
+    let config = parse(json!({ "displayName": "DP-1", "displayIdx": 1 }));
     assert_eq!(config.display_index(names(&["HDMI-A-1", "DP-2"])), None);
   }
 
   #[test]
   fn display_name_can_be_configured_without_an_index() {
-    let config: Config = serde_json::from_value(json!({"displayName": "DP-1"})).unwrap();
+    let config = parse(json!({"displayName": "DP-1"}));
     assert_eq!(config.display_index(names(&["DP-2", "DP-1"])), Some(1));
   }
 
   #[test]
   fn legacy_display_index_is_preserved() {
-    let config: Config = serde_json::from_value(json!({"displayIdx": 1})).unwrap();
+    let config = parse(json!({"displayIdx": 1}));
     assert_eq!(config.display_index(names(&["DP-2", "DP-1"])), Some(1));
   }
 
   #[test]
   fn display_name_survives_config_round_trip() {
-    let config: Config = serde_json::from_value(json!({
-      "displayName": "DP-1",
-      "displayIdx": 1
-    }))
-    .unwrap();
-
+    let config = parse(json!({ "displayName": "DP-1", "displayIdx": 1 }));
     let saved = serde_json::to_value(&config).unwrap();
     assert_eq!(saved["displayName"], "DP-1");
+  }
+
+  #[test]
+  fn empty_file_reads_as_defaults() {
+    assert_eq!(parse(json!({})), Config::default());
+  }
+
+  #[test]
+  fn nulls_written_by_older_versions_read_as_defaults() {
+    let config = parse(json!({
+      "overlayKeybind": null,
+      "isKeybindEnabled": null,
+      "port": null,
+      "userAlignment": null,
+      "messageAlignment": null,
+      "displayVoiceMembers": null,
+      "softwareRendering": null
+    }));
+    assert_eq!(config, Config::default());
+  }
+
+  #[test]
+  fn unknown_enum_values_fall_back_to_defaults() {
+    let config = parse(json!({
+      "userAlignment": "middle",
+      "displayVoiceMembers": "sometimes",
+      "speakingGraceStyle": 3
+    }));
+    assert_eq!(config.user_alignment, Corner::TopLeft);
+    assert_eq!(
+      config.display_voice_members,
+      DisplayVoiceMembers::AlwaysSemiTransparent
+    );
+    assert_eq!(config.speaking_grace_style, SpeakingGraceStyle::AsSpeaking);
+  }
+
+  #[test]
+  fn saved_files_keep_the_existing_keys_and_values() {
+    let config = Config {
+      user_alignment: Corner::BottomRight,
+      display_voice_members: DisplayVoiceMembers::WhenSpeaking,
+      keybind_enabled: false,
+      ..Config::default()
+    };
+    let saved = serde_json::to_value(&config).unwrap();
+    assert_eq!(saved["userAlignment"], "bottomright");
+    assert_eq!(saved["displayVoiceMembers"], "whenSpeaking");
+    assert_eq!(saved["isKeybindEnabled"], false);
+    assert_eq!(saved["port"], 6888);
+    assert_eq!(serde_json::from_value::<Config>(saved).unwrap(), config);
+  }
+
+  #[test]
+  fn grace_period_is_capped() {
+    assert_eq!(
+      parse(json!({"speakingGraceMs": 60000})).speaking_grace_ms,
+      5000
+    );
+  }
+
+  #[test]
+  fn unused_corner_skips_occupied_ones() {
+    assert_eq!(
+      Corner::unused(&[Corner::BottomRight, Corner::TopLeft]),
+      Some(Corner::BottomLeft)
+    );
+    assert_eq!(
+      Corner::unused(&[Corner::TopCenter]),
+      Some(Corner::BottomRight)
+    );
   }
 }

@@ -1,17 +1,17 @@
-use std::{str::FromStr, time::Instant};
+use std::time::Instant;
 
 use freya::prelude::*;
 
 use orbolay_core::{
   app_state::AppState,
-  config::{DisplayVoiceMembers, SpeakingGraceStyle},
+  config::{Axis, Corner, DisplayVoiceMembers, SpeakingGraceStyle},
   user::{User, UserVoiceState},
   util::text::censor,
 };
 
 use crate::{
   components::UserRow,
-  config::{AxisAlignment, CornerAlignment},
+  config::{corner_gaps, to_alignment},
   util::{scale::UiScale, theme::Theme},
 };
 
@@ -21,7 +21,7 @@ pub struct VoiceSection {
   pub voice_users: Vec<User>,
   pub is_open: bool,
   pub is_censor: bool,
-  pub user_alignment: String,
+  pub user_alignment: Corner,
   pub user_offset_x: i32,
   pub user_offset_y: i32,
   pub display_voice_members: DisplayVoiceMembers,
@@ -34,11 +34,14 @@ pub struct VoiceSection {
 
 impl Component for VoiceSection {
   fn render(&self) -> impl IntoElement {
-    // unwrap: this does not fail
-    let alignment = CornerAlignment::from_str(&self.user_alignment).unwrap();
     let scale = UiScale::new(self.ui_scale);
-    let gaps = alignment.to_gaps(scale.int(self.user_offset_x), scale.int(self.user_offset_y));
-    let is_right_aligned = alignment.x == AxisAlignment::End;
+    let (x, y) = self.user_alignment.axes();
+    let gaps = corner_gaps(
+      self.user_alignment,
+      scale.int(self.user_offset_x) as f32,
+      scale.int(self.user_offset_y) as f32,
+    );
+    let is_right_aligned = x == Axis::End;
 
     let mut sorted_users = self.voice_users.clone();
     sorted_users.sort_by(|a, b| a.id.cmp(&b.id));
@@ -60,8 +63,8 @@ impl Component for VoiceSection {
       filtered_users.iter().fold(
         rect()
           .direction(Direction::Vertical)
-          .cross_align(alignment.x.to_freya())
-          .main_align(alignment.y.to_freya())
+          .cross_align(to_alignment(x))
+          .main_align(to_alignment(y))
           .position(Position::new_absolute().top(0.).left(0.))
           .background(Color::TRANSPARENT)
           .height(Size::fill())

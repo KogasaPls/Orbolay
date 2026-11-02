@@ -1,7 +1,9 @@
 use freya::prelude::*;
 
+use orbolay_core::config::Corner;
+
 use crate::{
-  config::CornerAlignment,
+  config::corner_position,
   util::scale::{GapsScaleExt, UiScale},
 };
 
@@ -10,7 +12,7 @@ static SETTINGS_SVG: &[u8] = include_bytes!("../../../../assets/settings.svg");
 #[derive(PartialEq)]
 pub struct SettingsButton {
   pub on_click: EventHandler<()>,
-  pub alignment: CornerAlignment,
+  pub alignment: Corner,
   pub ui_scale: f32,
 }
 
@@ -21,7 +23,7 @@ impl Component for SettingsButton {
     let mut hovered = use_state(|| false);
 
     rect()
-      .position(self.alignment.to_position())
+      .position(corner_position(self.alignment))
       .padding(Gaps::new_all(16.0_f32).scaled(scale.factor()))
       .background(Color::TRANSPARENT)
       .cursor(CursorIcon::Pointer)

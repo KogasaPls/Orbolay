@@ -10,7 +10,7 @@ use native_dialog::{MessageDialogBuilder, MessageLevel};
 use orbolay_control::Command;
 use orbolay_core::{
   app_state::{AppHandle, AppState, SharedAppState},
-  config::{is_first_run, load_config, save_config},
+  config::{Config, Corner, LoadError, load_config, save_config},
   dirs::ensure_config_dirs,
   util::bridge::BridgeMessage,
 };
@@ -18,7 +18,6 @@ use orbolay_keys::KeyEvent;
 use orbolay_transport::{create_transport_thread, start_config_watcher};
 use orbolay_ui::{
   components::{MessagesSection, SettingsButton, Soundboard, VoiceControls, VoiceSection},
-  config::CornerAlignment,
   open_configurator, open_configurator_standalone, populate_monitor_cache,
   util::{scale::UiScale, theme},
 };
@@ -56,8 +55,8 @@ pub struct Args {
   #[options(help = "Display usage information")]
   help: bool,
 
-  #[options(help = "The port to run the websocket server on", default = "6888")]
-  port: u16,
+  #[options(help = "The port to run the websocket server on (overrides the configured port)")]
+  port: Option<u16>,
 
   #[options(help = "Print version information")]
   version: bool,
@@ -108,11 +107,16 @@ fn main() {
   init_logging();
   ensure_config_dirs();
 
-  let config = load_config().unwrap_or_default();
+  let (config, first_run) = match load_config() {
+    Ok(config) => (config, false),
+    Err(LoadError::Missing) => (Config::default(), true),
+    Err(err) => {
+      warn!("{err}; using the default config without overwriting it");
+      (Config::default(), false)
+    }
+  };
 
-  if let Some(software_rendering) = config.software_rendering
-    && software_rendering
-  {
+  if config.software_rendering {
     unsafe { std::env::set_var("FREYA_RENDERER", "software") };
   }
 
@@ -176,12 +180,19 @@ fn main() {
     target::launch_target(args.target, Some(env));
   }
 
+  let startup = Startup {
+    port: args.port.unwrap_or(config.port),
+    debug: args.debug,
+    first_run,
+    config: config.clone(),
+  };
+
   launch(
     LaunchConfig::new()
       .with_font("Twemoji", TWEMOJI_FONT)
       .with_fallback_font("Twemoji")
       .with_window(
-        WindowConfig::new(app)
+        WindowConfig::new(move || app(startup.clone()))
           .with_title("orbolay")
           .with_decorations(false)
           .with_transparency(true)
@@ -195,7 +206,7 @@ fn main() {
 
             populate_monitor_cache(primary.as_ref(), &monitors);
 
-            if let Some(monitor) = select_monitor(primary.as_ref(), &monitors) {
+            if let Some(monitor) = select_monitor(&config, primary.as_ref(), &monitors) {
               // Compute the initial window size for the chosen display.
               w = w
                 .with_inner_size(window_size_for_display(monitor))
@@ -225,8 +236,22 @@ fn init_logging() {
   builder.init();
 }
 
-fn app() -> impl IntoElement {
-  let args = Args::parse_args_default_or_exit();
+/// Settings resolved before the window opens.
+#[derive(Clone)]
+struct Startup {
+  port: u16,
+  debug: bool,
+  first_run: bool,
+  config: Config,
+}
+
+fn app(startup: Startup) -> impl IntoElement {
+  let Startup {
+    port,
+    debug,
+    first_run,
+    config: initial_config,
+  } = startup;
   let mut app_state = use_state(AppState::new);
   let mut soundboard_open = use_state(|| false);
 
@@ -242,14 +267,12 @@ fn app() -> impl IntoElement {
     let mut initial = AppState::new();
     initial.transport_sender = Some(transport_sender);
 
-    if let Some(saved) = load_config() {
-      initial.config = saved;
-    }
+    initial.config = initial_config;
 
     let shared: SharedAppState = std::sync::Arc::new(std::sync::RwLock::new(initial));
     let app = AppHandle::new(shared.clone(), redraw_tx, open_config_tx);
 
-    if !args.debug {
+    if !debug {
       window::set_clickable(false);
     }
 
@@ -273,7 +296,7 @@ fn app() -> impl IntoElement {
       }),
     });
 
-    create_transport_thread(app.clone(), args.port, transport_recv);
+    create_transport_thread(app.clone(), port, transport_recv);
     create_notification_thread(app.clone());
 
     // sync SharedAppState -> AppState on every redraw signal
@@ -291,17 +314,14 @@ fn app() -> impl IntoElement {
       }
     });
 
-    if is_first_run() {
+    if first_run {
       let _ = app.open_config();
       app.redraw();
 
       // Write the config regardless so we don't trigger this in the future
-      {
-        let config = app.read(|state| state.config.clone());
-        save_config(&config);
+      if let Err(err) = save_config(&app.read(|state| state.config.clone())) {
+        warn!("Failed to save config.json: {err}");
       }
-    } else if load_config().is_none() {
-      warn!("config.json could not be parsed, using the default config without overwriting it");
     }
 
     start_config_watcher(app.clone(), |old_config, new_config| {
@@ -309,7 +329,7 @@ fn app() -> impl IntoElement {
       if old_config.display_name != new_config.display_name
         || old_config.display_idx != new_config.display_idx
       {
-        update_monitor();
+        update_monitor(new_config);
       }
     });
 
@@ -361,15 +381,8 @@ fn app() -> impl IntoElement {
     .cloned();
   drop(state);
 
-  let occupied_corners = [
-    config.user_alignment.clone(),
-    config.message_alignment.clone(),
-  ]
-  .into_iter()
-  .flatten()
-  .collect::<Vec<_>>();
-  let settings_alignment = CornerAlignment::unused_corner(&occupied_corners)
-    .unwrap_or_else(|| "bottomleft".parse().unwrap());
+  let settings_alignment = Corner::unused(&[config.user_alignment, config.message_alignment])
+    .unwrap_or(Corner::BottomLeft);
   let open_settings: EventHandler<()> = (move |()| {
     let _ = app_handle.open_config();
   })
@@ -399,14 +412,11 @@ fn app() -> impl IntoElement {
       app_state,
       is_open,
       is_censor,
-      user_alignment: config
-        .user_alignment
-        .clone()
-        .unwrap_or_else(|| "topleft".into()),
+      user_alignment: config.user_alignment,
       user_offset_x: config.user_offset_x,
       user_offset_y: config.user_offset_y,
-      display_voice_members: config.display_voice_members.clone().unwrap_or_default(),
-      speaking_grace_style: config.speaking_grace_style.clone(),
+      display_voice_members: config.display_voice_members,
+      speaking_grace_style: config.speaking_grace_style,
       theme,
       ui_scale,
       user_template_size: (320, 62),
@@ -417,10 +427,7 @@ fn app() -> impl IntoElement {
       messages,
       is_open,
       is_censor,
-      message_alignment: config
-        .message_alignment
-        .clone()
-        .unwrap_or_else(|| "topright".into()),
+      message_alignment: config.message_alignment,
       message_offset_x: config.message_offset_x,
       message_offset_y: config.message_offset_y,
       messages_semitransparent: config.messages_semitransparent,
@@ -471,7 +478,7 @@ fn app() -> impl IntoElement {
     .maybe(is_open, |el| {
       el.child(SettingsButton {
         on_click: open_settings.clone(),
-        alignment: settings_alignment.clone(),
+        alignment: settings_alignment,
         ui_scale,
       })
     })

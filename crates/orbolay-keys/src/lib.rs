@@ -1,10 +1,3 @@
-use std::cell::Cell;
-
-thread_local! {
-  pub static DEFAULT_OVERLAY_TOGGLE: Cell<[&str; 2]> =
-    const { Cell::new(["ControlLeft", "BackQuote"]) };
-}
-
 #[derive(Debug, Clone)]
 pub enum KeyEvent {
   ToggleOverlay,
@@ -36,11 +29,4 @@ pub fn keys_to_strings(keys: &[Key]) -> Vec<String> {
 
 pub fn strings_to_keys(strings: &[impl AsRef<str>]) -> Vec<Key> {
   strings.iter().filter_map(string_to_key).collect()
-}
-
-pub fn default_keybinds() -> Vec<Keybind> {
-  vec![Keybind::new(
-    strings_to_keys(&DEFAULT_OVERLAY_TOGGLE.get()),
-    KeyEvent::ToggleOverlay,
-  )]
 }

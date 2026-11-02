@@ -113,17 +113,7 @@ pub fn handle_ws_message(
         .and_then(|v| v.as_str())
         .unwrap_or_default()
         .to_string();
-      let port = msg
-        .data
-        .get("port")
-        .and_then(Value::as_u64)
-        .and_then(|v| u16::try_from(v).ok());
-      app.update(|state| {
-        if let Some(port) = port {
-          state.config.port = Some(port);
-        }
-        state.user_id = user_id;
-      });
+      app.update(|state| state.user_id = user_id);
     }
     "CHANNEL_JOINED" => {
       let data = serde_json::from_value::<ChannelJoinPayload>(data)?;

@@ -76,7 +76,7 @@ pub fn open_configurator_standalone() {
   let (open_config_tx, _) = flume::unbounded();
   let app = AppHandle::new(shared, redraw_tx, open_config_tx);
 
-  if let Some(saved) = load_config() {
+  if let Ok(saved) = load_config() {
     app.update(|state| state.config = saved);
   }
 

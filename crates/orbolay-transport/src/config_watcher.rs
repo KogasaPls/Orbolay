@@ -5,7 +5,7 @@ use notify::{Event, Result, Watcher};
 
 use orbolay_core::{
   app_state::AppHandle,
-  config::{Config, config_dir, load_config},
+  config::{CONFIG_FILE, Config, config_dir, load_config},
 };
 
 pub fn start_config_watcher(
@@ -28,43 +28,44 @@ pub fn start_config_watcher(
       }
     };
 
-    let config_path = if let Some(path) = config_dir() {
-      path.join("config.json")
-    } else {
+    // Watch the directory: editors and save_config replace the file, which ends a watch on the
+    // file's own inode.
+    let Some(dir) = config_dir() else {
       warn!(
         "Failed to get config path. Config changes will not reflect until Orbolay is restarted."
       );
       return;
     };
 
-    if let Err(e) = watcher.watch(&config_path, notify::RecursiveMode::NonRecursive) {
+    if let Err(e) = watcher.watch(&dir, notify::RecursiveMode::NonRecursive) {
       warn!(
-        "Failed to watch config file at {}: {e}. Config changes will not reflect until Orbolay is restarted.",
-        config_path.display()
+        "Failed to watch {}: {e}. Config changes will not reflect until Orbolay is restarted.",
+        dir.display()
       );
       return;
     }
 
-    loop {
-      match rx.recv() {
-        Ok(Ok(event)) => {
-          if !event.kind.is_modify() {
-            continue;
-          }
-
-          if event.paths.iter().any(|p| p == &config_path) {
-            info!("Config file changed, reloading...");
-            if let Some(new_config) = load_config() {
-              apply_config_change(&app, &mut previous_config, new_config, &on_config_change);
-
-              info!("Config reloaded successfully");
-            } else {
-              warn!("Failed to reload config file");
-            }
-          }
+    for event in rx {
+      let event = match event {
+        Ok(event) => event,
+        Err(e) => {
+          error!("Watcher error: {e}");
+          continue;
         }
-        Ok(Err(e)) => error!("Watcher error: {e}"),
-        Err(e) => error!("Watcher channel error: {e}"),
+      };
+      let touches_config = event
+        .paths
+        .iter()
+        .any(|path| path.file_name().is_some_and(|name| name == CONFIG_FILE));
+      if !touches_config || !(event.kind.is_modify() || event.kind.is_create()) {
+        continue;
+      }
+
+      match load_config() {
+        Ok(new_config) => {
+          apply_config_change(&app, &mut previous_config, new_config, &on_config_change);
+        }
+        Err(e) => warn!("Failed to reload config: {e}"),
       }
     }
   });
@@ -76,7 +77,17 @@ fn apply_config_change(
   new_config: Config,
   on_config_change: &impl Fn(&Config, &Config),
 ) {
-  app.update(|state| state.config = new_config.clone());
+  if *previous_config == new_config {
+    return;
+  }
+  info!("Config file changed, reloading");
+  app.update_if_changed(|state| {
+    let changed = state.config != new_config;
+    if changed {
+      state.config = new_config.clone();
+    }
+    changed
+  });
   on_config_change(previous_config, &new_config);
   *previous_config = new_config;
 }
@@ -91,7 +102,7 @@ mod tests {
   use std::cell::RefCell;
 
   #[test]
-  fn ui_changes_are_compared_with_the_previous_loaded_config() {
+  fn ui_changes_are_compared_with_the_previous_loaded_config_once() {
     let mut previous_config = Config {
       display_idx: Some(0),
       ..Config::default()
@@ -115,9 +126,6 @@ mod tests {
     apply_config_change(&app, &mut previous_config, new_config.clone(), &on_change);
     apply_config_change(&app, &mut previous_config, new_config, &on_change);
 
-    assert_eq!(
-      *observed.borrow(),
-      vec![(Some(0), Some(1)), (Some(1), Some(1))]
-    );
+    assert_eq!(*observed.borrow(), vec![(Some(0), Some(1))]);
   }
 }
