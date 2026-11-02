@@ -4165,14 +4165,11 @@ version = "4.3.0"
 dependencies = [
  "chrono",
  "flume",
- "interprocess",
  "notify",
  "orbolay-core",
  "orbolay-logging",
  "serde_json",
  "tungstenite",
- "ureq",
- "url",
 ]
 
 [[package]]

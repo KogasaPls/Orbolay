@@ -4,7 +4,7 @@ use freya::prelude::*;
 
 use orbolay_core::{
   app_state::AppHandle,
-  config::{Config, DisplayVoiceMembers, TransportMode, config_dir, save_config},
+  config::{Config, DisplayVoiceMembers, config_dir, save_config},
   dirs::{TEMPLATES_DIR, ensure_config_dirs},
   monitors::monitors_list,
   payloads::Notification,
@@ -26,8 +26,6 @@ use super::{
   color_picker::ColorPickerControl, dropdown::DropdownControl, input::InputControl,
   setting::SettingRow, toggle::ToggleControl,
 };
-
-const TRANSPORT_MODES: &[&str] = &["ipc", "websocket"];
 
 const ALIGNMENTS: &[&str] = &[
   "topleft",
@@ -596,18 +594,11 @@ impl Settings {
     let config = &self.config;
 
     vec![card([
-      self.dropdown(
-        "Connection Mode",
-        "Set the communication method between Orbolay and Discord. If using an official client, use \"ipc\", otherwise, use \"websocket\".",
-        to_options(TRANSPORT_MODES),
-        option_index(TRANSPORT_MODES, &config.transport_mode.to_string()),
-        |cfg, idx| cfg.transport_mode = TRANSPORT_MODES[idx].to_string().into(),
-      ),
       self.number(
         "Websocket Port",
-        Some("Port the websocket server listens on (websocket mode only). Requires Restart."),
+        Some("Port the websocket server listens on. Requires Restart."),
         config.port.unwrap_or(6888),
-        config.transport_mode != TransportMode::Websocket,
+        false,
         |cfg, n: u16| cfg.port = Some(n),
       ),
     ])]

@@ -50,7 +50,6 @@ pub struct User {
 }
 
 use crate::payloads::WsVoiceState;
-use crate::payloads::ipc::RpcVoiceState;
 
 impl From<WsVoiceState> for User {
   fn from(val: WsVoiceState) -> Self {
@@ -87,50 +86,6 @@ impl From<&WsVoiceState> for UserVoiceState {
       (Some(true), _, _) => Self::Muted,
       (_, _, Some(true)) => Self::Speaking,
       _ => Self::NotSpeaking,
-    }
-  }
-}
-
-impl From<RpcVoiceState> for User {
-  fn from(val: RpcVoiceState) -> Self {
-    let voice_state = UserVoiceState::from(&val);
-
-    Self {
-      name: val
-        .nick
-        .or(val.user.global_name)
-        .unwrap_or(val.user.username),
-      id: val.user.id,
-      avatar: val.user.avatar.unwrap_or_default(),
-      voice_state,
-      streaming: false,
-      camera: false,
-      volume: val.volume,
-      grace_until: None,
-    }
-  }
-}
-
-impl From<RpcVoiceState> for UserVoiceState {
-  fn from(val: RpcVoiceState) -> Self {
-    if val.voice_state.deaf || val.voice_state.self_deaf {
-      Self::Deafened
-    } else if val.voice_state.mute || val.voice_state.self_mute {
-      Self::Muted
-    } else {
-      Self::NotSpeaking
-    }
-  }
-}
-
-impl From<&RpcVoiceState> for UserVoiceState {
-  fn from(val: &RpcVoiceState) -> Self {
-    if val.voice_state.deaf || val.voice_state.self_deaf {
-      Self::Deafened
-    } else if val.voice_state.mute || val.voice_state.self_mute {
-      Self::Muted
-    } else {
-      Self::NotSpeaking
     }
   }
 }

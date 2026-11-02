@@ -104,7 +104,6 @@ pub struct SoundboardSoundPayload {
   pub available: bool,
 }
 
-pub mod ipc;
 pub mod ws;
 
 pub use ws::{ChannelJoinPayload, NotificationPayload, UpdatePayload, WsVoiceState};

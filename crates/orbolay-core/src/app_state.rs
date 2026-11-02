@@ -5,7 +5,7 @@ use std::{
 };
 
 use crate::{
-  config::{Config, TransportMode},
+  config::Config,
   payloads::{Notification, SoundboardSoundPayload},
   user::{PremiumType, User, UserVoiceState},
   util::bridge::BridgeMessage,
@@ -134,18 +134,16 @@ pub struct AppState {
   pub config: Config,
   pub user_id: String,
   pub premium_type: PremiumType,
-  pub transport_mode: TransportMode,
   pub current_channel: String,
   pub current_guild_id: String,
   pub is_open: bool,
-  pub is_censor: bool, // Used in modded clients but not IPC
+  pub is_censor: bool,
   pub voice_users: Vec<User>,
   pub messages: Vec<Notification>,
   pub soundboard_cache: HashMap<String, Vec<SoundboardSoundPayload>>,
 
   // Name caches
   pub guild_names: HashMap<String, String>,
-  pub channel_names: HashMap<String, String>,
 
   pub transport_sender: Option<flume::Sender<BridgeMessage>>,
 
@@ -167,7 +165,6 @@ impl AppState {
       config: Config::default(),
       user_id: String::new(),
       premium_type: PremiumType::None,
-      transport_mode: TransportMode::Ipc,
       current_channel: String::new(),
       current_guild_id: String::new(),
       is_open: false,
@@ -177,7 +174,6 @@ impl AppState {
       soundboard_cache: HashMap::new(),
 
       guild_names: default_guild_names,
-      channel_names: HashMap::new(),
 
       transport_sender: None,
       recording_keybind: Arc::new(AtomicBool::new(false)),

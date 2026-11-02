@@ -4,7 +4,7 @@ use freya::prelude::*;
 
 use orbolay_core::{
   app_state::AppState,
-  config::{DisplayVoiceMembers, SpeakingGraceStyle, TransportMode},
+  config::{DisplayVoiceMembers, SpeakingGraceStyle},
   user::{User, UserVoiceState},
   util::text::censor,
 };
@@ -82,9 +82,7 @@ impl Component for VoiceSection {
           }
 
           let is_self = self.app_state.read().user_id == u.id;
-          // TODO websocket cannot change user volume yet
-          let can_context_menu =
-            !is_self && self.app_state.read().config.transport_mode == TransportMode::Ipc;
+          let can_context_menu = false;
           let is_voice_semitransparent = dimmed
             || matches!(
               self.display_voice_members,

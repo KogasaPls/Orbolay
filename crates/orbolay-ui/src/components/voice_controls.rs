@@ -3,7 +3,6 @@ use serde_json::Value;
 
 use orbolay_core::{
   app_state::AppState,
-  config::TransportMode,
   user::{User, UserVoiceState},
   util::bridge::BridgeMessage,
 };
@@ -89,7 +88,6 @@ impl Component for VoiceControls {
     let is_muted = self.user.voice_state == UserVoiceState::Muted;
     let is_deafened = self.user.voice_state == UserVoiceState::Deafened;
     let is_streaming = self.user.streaming;
-    let transport_mode = app_state.read().transport_mode.clone();
 
     rect()
       .direction(Direction::Horizontal)
@@ -158,7 +156,7 @@ impl Component for VoiceControls {
         theme: self.theme,
         ui_scale: scale.factor(),
       })
-      .maybe(is_streaming && transport_mode != TransportMode::Ipc, |el| {
+      .maybe(is_streaming, |el| {
         el.child(ControlButton {
           icon: STOP_STREAM_SVG,
           is_red: true,

@@ -6,14 +6,6 @@ use crate::dirs::ensure_config_dirs;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
-pub enum TransportMode {
-  #[default]
-  Ipc,
-  Websocket,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "camelCase")]
 pub enum DisplayVoiceMembers {
   Always,
   #[default]
@@ -27,24 +19,6 @@ pub enum SpeakingGraceStyle {
   #[default]
   AsSpeaking,
   Dimmed,
-}
-
-impl Display for TransportMode {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      Self::Ipc => write!(f, "ipc"),
-      Self::Websocket => write!(f, "websocket"),
-    }
-  }
-}
-
-impl From<String> for TransportMode {
-  fn from(value: String) -> Self {
-    match value.as_ref() {
-      "websocket" => Self::Websocket,
-      _ => Self::Ipc,
-    }
-  }
 }
 
 impl Display for DisplayVoiceMembers {
@@ -154,8 +128,6 @@ pub struct Config {
   #[serde(default)]
   pub is_keybind_enabled: Option<bool>,
   #[serde(default)]
-  pub transport_mode: TransportMode,
-  #[serde(default)]
   pub software_rendering: Option<bool>,
   #[serde(default = "default_true")]
   pub xwayland: bool,
@@ -203,7 +175,6 @@ impl Default for Config {
       speaking_grace_style: SpeakingGraceStyle::AsSpeaking,
       messages_semitransparent: false,
       is_keybind_enabled: None,
-      transport_mode: TransportMode::Ipc,
       software_rendering: None,
       xwayland: true,
       accent: default_accent(),

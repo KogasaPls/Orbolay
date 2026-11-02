@@ -13,7 +13,7 @@ use native_dialog::{MessageDialogBuilder, MessageLevel};
 use orbolay_control::Command;
 use orbolay_core::{
   app_state::{AppHandle, AppState, SharedAppState},
-  config::{TransportMode, is_first_run, load_config, save_config},
+  config::{is_first_run, load_config, save_config},
   dirs::ensure_config_dirs,
   util::bridge::BridgeMessage,
 };
@@ -63,12 +63,6 @@ pub struct Args {
 
   #[options(help = "Enable various debugging features")]
   debug: bool,
-
-  #[options(help = "Force websocket mode instead of IPC")]
-  websocket: bool,
-
-  #[options(help = "Force IPC mode instead of websocket")]
-  ipc: bool,
 
   #[options(help = "Open the configuration window")]
   config: bool,
@@ -285,15 +279,7 @@ fn app() -> impl IntoElement {
       }),
     });
 
-    let force_transport = if args.websocket {
-      Some(TransportMode::Websocket)
-    } else if args.ipc {
-      Some(TransportMode::Ipc)
-    } else {
-      None
-    };
-
-    create_transport_thread(app.clone(), args.port, force_transport, transport_recv);
+    create_transport_thread(app.clone(), args.port, transport_recv);
     create_notification_thread(app.clone());
 
     // sync SharedAppState -> AppState on every redraw signal
