@@ -43,3 +43,27 @@ pub fn corner_position(corner: Corner) -> Position {
 
   position
 }
+
+#[cfg(test)]
+mod tests {
+  use freya::prelude::Gaps;
+  use orbolay_core::config::Corner;
+
+  use super::corner_gaps;
+
+  #[test]
+  fn offsets_push_away_from_the_anchored_edges() {
+    assert_eq!(
+      corner_gaps(Corner::TopLeft, 3., 5.),
+      Gaps::new(5., 0., 0., 3.)
+    );
+    assert_eq!(
+      corner_gaps(Corner::BottomRight, 3., 5.),
+      Gaps::new(0., 3., 5., 0.)
+    );
+    assert_eq!(
+      corner_gaps(Corner::CenterLeft, 3., 5.),
+      Gaps::new(0., 0., 0., 3.)
+    );
+  }
+}

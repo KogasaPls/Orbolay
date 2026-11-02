@@ -224,3 +224,38 @@ impl Component for Soundboard {
     )
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use orbolay_core::protocol::SoundboardSoundPayload;
+
+  use super::{guild_order, usable};
+
+  fn sound(guild_id: Option<&str>, available: bool) -> SoundboardSoundPayload {
+    SoundboardSoundPayload {
+      sound_id: "s".into(),
+      name: "s".into(),
+      volume: 1.,
+      emoji_id: None,
+      emoji_name: None,
+      guild_id: guild_id.map(Into::into),
+      available,
+    }
+  }
+
+  #[test]
+  fn other_servers_sounds_need_nitro() {
+    assert!(usable(&sound(None, true), false, "here"));
+    assert!(usable(&sound(Some("here"), true), false, "here"));
+    assert!(!usable(&sound(Some("elsewhere"), true), false, "here"));
+    assert!(usable(&sound(Some("elsewhere"), true), true, "here"));
+    assert!(!usable(&sound(Some("here"), false), true, "here"));
+  }
+
+  #[test]
+  fn the_current_server_sorts_first_then_default_sounds() {
+    assert!(guild_order("here", "here") < guild_order("", "here"));
+    assert!(guild_order("", "here") < guild_order("elsewhere", "here"));
+    assert_eq!(guild_order("", ""), guild_order("", "here"));
+  }
+}
