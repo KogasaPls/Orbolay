@@ -504,7 +504,6 @@ impl Settings {
           title: "Test Notification".into(),
           body: "This is a test notification, triggered manually from the configuration window!"
             .into(),
-          icon: "https://avatars.githubusercontent.com/u/25207995?v=4".into(),
           ..Default::default()
         });
       }));

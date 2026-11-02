@@ -15,12 +15,11 @@ use orbolay_core::{
   app_state::{AppHandle, AppState, SharedAppState},
   config::{TransportMode, is_first_run, load_config, save_config},
   dirs::ensure_config_dirs,
-  payloads::Notification,
   util::bridge::BridgeMessage,
 };
 use orbolay_keys::KeyEvent;
 use orbolay_logging::{log, warn};
-use orbolay_transport::{create_transport_thread, maybe_notify_update, start_config_watcher};
+use orbolay_transport::{create_transport_thread, start_config_watcher};
 use orbolay_ui::{
   components::{MessagesSection, SettingsButton, Soundboard, VoiceControls, VoiceSection},
   config::CornerAlignment,
@@ -297,18 +296,6 @@ fn app() -> impl IntoElement {
     create_transport_thread(app.clone(), args.port, force_transport, transport_recv);
     create_notification_thread(app.clone());
 
-    app.notify(Notification {
-      title: format!(
-        "Orbolay v{} (rev {})",
-        APP_VERSION.unwrap_or("0.0.0"),
-        GIT_HASH.unwrap_or("unknown")
-      ),
-      body: "by SpikeHD".to_string(),
-      icon: "https://avatars.githubusercontent.com/u/25207995?v=4".to_string(),
-      url: Some("https://github.com/SpikeHD/Orbolay".to_string()),
-      ..Default::default()
-    });
-
     // sync SharedAppState -> AppState on every redraw signal
     let shared_sync = shared;
     spawn_in_window(async move {
@@ -345,7 +332,6 @@ fn app() -> impl IntoElement {
         update_monitor();
       }
     });
-    maybe_notify_update(app.clone());
 
     spawn_in_window(async move {
       while let Ok(event) = action_rx.recv_async().await {
