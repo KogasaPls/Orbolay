@@ -10,7 +10,7 @@ use std::{
   time::{Duration, Instant},
 };
 
-use evdev::{Device, EventSummary};
+use evdev::{Device, EventStream, EventSummary};
 use log::{debug, info, warn};
 use notify::{EventKind, RecursiveMode, Watcher};
 use tokio::task::JoinSet;
@@ -137,12 +137,16 @@ async fn listen(keys: Vec<Key>, recording: &AtomicBool, keybind_tx: &flume::Send
         }
       }
       Ok(path) = added_rx.recv_async() => {
-        tokio::time::sleep(HOTPLUG_DELAY).await;
-        if let Ok(device) = Device::open(&path)
-          && relevant(&path, &device, &keys)
-        {
-          open(&mut readers, &path, device, &key_tx);
-        }
+        let (keys, key_tx) = (keys.clone(), key_tx.clone());
+        readers.spawn(async move {
+          tokio::time::sleep(HOTPLUG_DELAY).await;
+          if let Ok(device) = Device::open(&path)
+            && relevant(&path, &device, &keys)
+            && let Some(events) = stream(&path, device)
+          {
+            forward(events, &key_tx).await;
+          }
+        });
       }
     }
   }
@@ -170,36 +174,46 @@ fn open(
   device: Device,
   key_tx: &flume::Sender<(Key, bool)>,
 ) -> bool {
+  let Some(events) = stream(path, device) else {
+    return false;
+  };
+  let key_tx = key_tx.clone();
+  readers.spawn(async move { forward(events, &key_tx).await });
+  true
+}
+
+fn stream(path: &std::path::Path, device: Device) -> Option<EventStream> {
   let name = device_name(&device);
-  let mut events = match device.into_event_stream() {
-    Ok(events) => events,
+  match device.into_event_stream() {
+    Ok(events) => {
+      debug!("Reading keys from {name} ({})", path.display());
+      Some(events)
+    }
     Err(e) => {
       debug!("Cannot read {name} ({}): {e}", path.display());
-      return false;
+      None
     }
-  };
-  debug!("Reading keys from {name} ({})", path.display());
+  }
+}
 
-  let key_tx = key_tx.clone();
-  readers.spawn(async move {
-    loop {
-      match events.next_event().await.map(EventSummary::from) {
-        Ok(EventSummary::Key(_, code, value @ (0 | 1))) => {
-          if let Some(key) = Key::from_code(code)
-            && key_tx.send((key, value == 1)).is_err()
-          {
-            return;
-          }
-        }
-        Ok(_) => {}
-        Err(e) => {
-          debug!("Stopped reading {name}: {e}");
+/// Sends each key press and release until the device or the listener goes away.
+async fn forward(mut events: EventStream, key_tx: &flume::Sender<(Key, bool)>) {
+  loop {
+    match events.next_event().await.map(EventSummary::from) {
+      Ok(EventSummary::Key(_, code, value @ (0 | 1))) => {
+        if let Some(key) = Key::from_code(code)
+          && key_tx.send((key, value == 1)).is_err()
+        {
           return;
         }
       }
+      Ok(_) => {}
+      Err(e) => {
+        debug!("Stopped reading {}: {e}", device_name(events.device()));
+        return;
+      }
     }
-  });
-  true
+  }
 }
 
 /// Reports input devices created after startup.
