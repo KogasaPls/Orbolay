@@ -24,7 +24,7 @@ pub struct UpdatePayload {
   pub state: WsVoiceState,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct NotificationPayload {
   pub message: super::Notification,
 }

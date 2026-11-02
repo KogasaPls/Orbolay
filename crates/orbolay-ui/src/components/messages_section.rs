@@ -53,13 +53,11 @@ impl Component for MessagesSection {
         if self.is_censor {
           el
         } else {
-          let has_actions = message.actions.as_ref().is_some_and(|a| !a.is_empty());
-
           el.child(MessageRow {
             app_state: self.app_state,
             message: message.clone(),
             theme: self.theme,
-            box_size: if has_actions { (400, 100) } else { (400, 66) },
+            box_size: (400, 66),
             notification_template: self.notification_template.clone(),
             ui_scale: scale.factor(),
           })

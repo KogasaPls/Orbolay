@@ -6,8 +6,7 @@ use freya::{
 use orbolay_core::{app_state::AppState, payloads::Notification, util::bridge::BridgeMessage};
 
 use crate::util::{
-  html_template::is_network_url,
-  notification_template::{self, load_notification_template, render_notification},
+  notification_template::{load_notification_template, render_notification},
   scale::{GapsScaleExt, UiScale},
   theme::Theme,
 };
@@ -36,7 +35,6 @@ impl Component for MessageRow {
     let width = scale.px(self.box_size.0 as f32);
     let height = scale.px(self.box_size.1 as f32);
     let message = self.message.clone();
-    let ui_scale = self.ui_scale;
     let mut app_state = self.app_state;
 
     let handle = use_html(|| HtmlSource::html(String::new()));
@@ -68,39 +66,7 @@ impl Component for MessageRow {
           .scale(self.ui_scale)
           .child(HtmlViewer::new(handle)),
       )
-      .on_press(move |event: Event<PressEventData>| {
-        let (mouse_x, mouse_y) = match &*event {
-          PressEventData::Mouse(m) => (m.element_location.x, m.element_location.y),
-          PressEventData::Touch(t) => (t.element_location.x, t.element_location.y),
-          PressEventData::Keyboard(_) | PressEventData::Accessibility(_) => return,
-        };
-        #[expect(
-          clippy::cast_possible_truncation,
-          reason = "pointer coordinates fit in f32"
-        )]
-        let (local_x, local_y) = (mouse_x as f32 / ui_scale, mouse_y as f32 / ui_scale);
-        let hits = handle.elements_at(local_x, local_y);
-
-        for hit in hits {
-          if let Some(index) = hit
-            .attributes
-            .get(notification_template::ACTION_ATTR)
-            .and_then(|value| value.parse::<usize>().ok())
-            && let Some(actions) = &message.actions
-            && let Some(action) = actions.get(index)
-          {
-            (action.action)();
-            return;
-          }
-        }
-
-        if let Some(url) = &message.url
-          && is_network_url(url)
-        {
-          let _ = open::that(url);
-          return;
-        }
-
+      .on_press(move |_| {
         app_state.write().send(BridgeMessage {
           cmd: "NAVIGATE".to_string(),
           data: serde_json::json!({

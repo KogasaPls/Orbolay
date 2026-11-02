@@ -47,16 +47,9 @@ you want the icon to appear. The icon is only present when the corresponding sta
 * `{{title}}` - the notification title, example usage: `<span>{{title}}</span>`
 * `{{body}}` - the notification body (markdown stripped), example usage: `<span>{{body}}</span>`
 * `{{icon}}` - the icon image link, example usage: `<img src="{{icon}}" />`
-* `{{actions}}` - a set of clickable `<button>` elements, one per action, each with a `data-action="<index>"` attribute. Example output:
+* `{{actions}}` - accepted for compatibility with older templates; it renders nothing
 
-```html
-<button class="action" data-action="0">Accept</button>
-<button class="action secondary" data-action="1">Reject</button>
-```
-
-> [!NOTE]
-> Orbolay routes a click on an element carrying a `data-action` attribute to the matching action. Any other click
-on the notification navigates to the source message.
+A click anywhere on the notification navigates to the source message.
 
 ## Available CSS Variables
 
@@ -89,5 +82,3 @@ required `id` attribute.
 ### Notifications
 
 * `no-icon` - the notification has no icon to display
-* `has-actions` - the notification has clickable action buttons
-* `has-url` - clicking the notification opens a URL instead of navigating to the source message

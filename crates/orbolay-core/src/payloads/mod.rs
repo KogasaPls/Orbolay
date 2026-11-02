@@ -1,26 +1,10 @@
 use serde::Deserialize;
-use std::sync::Arc;
-
-pub type NotificationFn = Arc<dyn Fn() + Send + Sync>;
 
 fn default_timeout_secs() -> i64 {
   5
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum NotificationKind {
-  Primary,
-  Secondary,
-}
-
-#[derive(Clone)]
-pub struct NotificationAction {
-  pub label: String,
-  pub action: NotificationFn,
-  pub kind: NotificationKind,
-}
-
-#[derive(Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Notification {
   pub title: String,
@@ -35,42 +19,6 @@ pub struct Notification {
   pub timestamp: Option<i64>,
   #[serde(default = "default_timeout_secs", skip_deserializing)]
   pub timeout_secs: i64,
-  #[serde(skip)]
-  pub actions: Option<Vec<NotificationAction>>,
-  /// Clicking the notification opens this URL instead of navigating to the source message
-  #[serde(default, skip_deserializing)]
-  pub url: Option<String>,
-}
-
-impl PartialEq for Notification {
-  fn eq(&self, other: &Self) -> bool {
-    self.title == other.title
-      && self.body == other.body
-      && self.icon == other.icon
-      && self.guild_id == other.guild_id
-      && self.channel_id == other.channel_id
-      && self.message_id == other.message_id
-      && self.timestamp == other.timestamp
-      && self.url == other.url
-    // Actions are not compared as they are functions
-  }
-}
-
-impl std::fmt::Debug for Notification {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_struct("Notification")
-      .field("title", &self.title)
-      .field("body", &self.body)
-      .field("icon", &self.icon)
-      .field("guild_id", &self.guild_id)
-      .field("channel_id", &self.channel_id)
-      .field("message_id", &self.message_id)
-      .field("timestamp", &self.timestamp)
-      .field("timeout_secs", &self.timeout_secs)
-      .field("url", &self.url)
-      .field("actions", &self.actions.is_some())
-      .finish()
-  }
 }
 
 impl Default for Notification {
@@ -84,8 +32,6 @@ impl Default for Notification {
       message_id: None,
       timestamp: Some(chrono::Utc::now().timestamp()),
       timeout_secs: 5,
-      actions: None,
-      url: None,
     }
   }
 }
