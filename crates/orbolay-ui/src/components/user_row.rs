@@ -4,7 +4,7 @@ use freya::{
 };
 
 use orbolay_core::{
-  app_state::AppState,
+  app_state::AppHandle,
   user::{User, UserVoiceState},
 };
 
@@ -23,7 +23,7 @@ use crate::{
   reason = "component props are independent display flags"
 )]
 pub struct UserRow {
-  pub app_state: State<AppState>,
+  pub app: AppHandle,
   pub user: User,
   pub is_self: bool,
   pub is_open: bool,
@@ -96,7 +96,7 @@ impl Component for UserRow {
         el.on_secondary_down({
           let user = self.user.clone();
           let theme = self.theme;
-          let app_state = self.app_state;
+          let app = self.app.clone();
           move |_| {
             ContextMenu::open_from_down(
               Menu::new()
@@ -114,7 +114,7 @@ impl Component for UserRow {
                 .child(UserContextMenuItem {
                   user: user.clone(),
                   theme,
-                  app_state,
+                  app: app.clone(),
                   ui_scale: scale.factor(),
                 }),
             );

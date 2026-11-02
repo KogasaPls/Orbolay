@@ -1,10 +1,9 @@
 use freya::prelude::*;
-use serde_json::Value;
 
 use orbolay_core::{
-  app_state::AppState,
+  app_state::AppHandle,
+  protocol::BridgeCommand,
   user::{User, UserVoiceState},
-  util::bridge::BridgeMessage,
 };
 
 use crate::util::{
@@ -74,7 +73,7 @@ impl Component for ControlButton {
 #[derive(PartialEq)]
 pub struct VoiceControls {
   pub user: User,
-  pub app_state: State<AppState>,
+  pub app: AppHandle,
   pub soundboard_open: State<bool>,
   pub theme: Theme,
   pub ui_scale: f32,
@@ -83,7 +82,10 @@ pub struct VoiceControls {
 impl Component for VoiceControls {
   fn render(&self) -> impl IntoElement {
     let scale = UiScale::new(self.ui_scale);
-    let mut app_state = self.app_state;
+    let send = |command: BridgeCommand| -> EventHandler<()> {
+      let app = self.app.clone();
+      (move |()| app.send(command.clone())).into()
+    };
     let mut soundboard_open = self.soundboard_open;
     let is_muted = self.user.voice_state == UserVoiceState::Muted;
     let is_deafened = self.user.voice_state == UserVoiceState::Deafened;
@@ -105,13 +107,7 @@ impl Component for VoiceControls {
           MUTE_SVG
         },
         is_red: is_muted || is_deafened,
-        on_click: (move |()| {
-          app_state.write().send(BridgeMessage {
-            cmd: "TOGGLE_MUTE".to_string(),
-            data: Value::Null,
-          });
-        })
-        .into(),
+        on_click: send(BridgeCommand::ToggleMute),
         theme: self.theme,
         ui_scale: scale.factor(),
       })
@@ -122,13 +118,7 @@ impl Component for VoiceControls {
           DEAFEN_SVG
         },
         is_red: is_deafened,
-        on_click: (move |()| {
-          app_state.write().send(BridgeMessage {
-            cmd: "TOGGLE_DEAF".to_string(),
-            data: Value::Null,
-          });
-        })
-        .into(),
+        on_click: send(BridgeCommand::ToggleDeaf),
         theme: self.theme,
         ui_scale: scale.factor(),
       })
@@ -146,13 +136,7 @@ impl Component for VoiceControls {
       .child(ControlButton {
         icon: DISCONNECT_SVG,
         is_red: true,
-        on_click: (move |()| {
-          app_state.write().send(BridgeMessage {
-            cmd: "DISCONNECT".to_string(),
-            data: Value::Null,
-          });
-        })
-        .into(),
+        on_click: send(BridgeCommand::Disconnect),
         theme: self.theme,
         ui_scale: scale.factor(),
       })
@@ -160,13 +144,7 @@ impl Component for VoiceControls {
         el.child(ControlButton {
           icon: STOP_STREAM_SVG,
           is_red: true,
-          on_click: (move |()| {
-            app_state.write().send(BridgeMessage {
-              cmd: "STOP_STREAM".to_string(),
-              data: Value::Null,
-            });
-          })
-          .into(),
+          on_click: send(BridgeCommand::StopStream),
           theme: self.theme,
           ui_scale: scale.factor(),
         })

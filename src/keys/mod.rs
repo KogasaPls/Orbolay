@@ -9,19 +9,19 @@ use std::time::Duration;
 use rdev::{Event, grab, listen};
 
 use log::{info, warn};
-use orbolay_core::app_state::SharedAppState;
+use orbolay_core::app_state::AppHandle;
 
 use orbolay_keys::{KeyEvent, KeyState, Keybind, strings_to_keys};
 
-pub fn watch_keybinds(shared: SharedAppState, keybind_tx: flume::Sender<KeyEvent>) {
+pub fn watch_keybinds(app: AppHandle, keybind_tx: flume::Sender<KeyEvent>) {
   let enabled = Arc::new(AtomicBool::new(true));
   let keybinds: Arc<RwLock<Vec<Keybind>>> = Arc::new(RwLock::new(vec![Keybind::new(
     Vec::new(),
     KeyEvent::ToggleOverlay,
   )]));
-  let recording = shared.read().unwrap().recording_keybind.clone();
+  let recording = app.recording_keybind().clone();
 
-  if !shared.read().unwrap().config.keybind_enabled {
+  if !app.read(|state| state.config.keybind_enabled) {
     info!("Global keybinds are disabled; not watching input devices until enabled");
   }
 
@@ -32,13 +32,12 @@ pub fn watch_keybinds(shared: SharedAppState, keybind_tx: flume::Sender<KeyEvent
       let mut listening = false;
 
       loop {
-        let (is_enabled, overlay_keybind) = {
-          let state = shared.read().unwrap();
+        let (is_enabled, overlay_keybind) = app.read(|state| {
           (
             state.config.keybind_enabled,
             state.config.overlay_keybind.clone(),
           )
-        };
+        });
 
         enabled.store(is_enabled, Ordering::Relaxed);
 

@@ -3,7 +3,7 @@ use freya::{
   prelude::*,
 };
 
-use orbolay_core::{app_state::AppState, payloads::Notification, util::bridge::BridgeMessage};
+use orbolay_core::{app_state::AppHandle, payloads::Notification, protocol::BridgeCommand};
 
 use crate::util::{
   notification_template::{load_notification_template, render_notification},
@@ -13,7 +13,7 @@ use crate::util::{
 
 #[derive(PartialEq)]
 pub struct MessageRow {
-  pub app_state: State<AppState>,
+  pub app: AppHandle,
   pub message: Notification,
   pub theme: Theme,
   pub box_size: (u32, u32),
@@ -35,7 +35,7 @@ impl Component for MessageRow {
     let width = scale.px(self.box_size.0 as f32);
     let height = scale.px(self.box_size.1 as f32);
     let message = self.message.clone();
-    let mut app_state = self.app_state;
+    let app = self.app.clone();
 
     let handle = use_html(|| HtmlSource::html(String::new()));
     let deps = (
@@ -67,13 +67,10 @@ impl Component for MessageRow {
           .child(HtmlViewer::new(handle)),
       )
       .on_press(move |_| {
-        app_state.write().send(BridgeMessage {
-          cmd: "NAVIGATE".to_string(),
-          data: serde_json::json!({
-            "guild_id": message.guild_id,
-            "channel_id": message.channel_id,
-            "message_id": message.message_id,
-          }),
+        app.send(BridgeCommand::Navigate {
+          guild_id: message.guild_id.clone(),
+          channel_id: message.channel_id.clone(),
+          message_id: message.message_id.clone(),
         });
       })
   }

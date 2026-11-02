@@ -1,20 +1,16 @@
 use log::{debug, error, info, warn};
-use serde_json::Value;
-use std::collections::HashMap;
 use std::net::{TcpListener, TcpStream};
 use tungstenite::{Message, Utf8Bytes, accept};
 
 use orbolay_core::{
   app_state::AppHandle,
-  payloads::{ChannelJoinPayload, NotificationPayload, SoundboardSoundPayload, UpdatePayload},
-  user::UserVoiceState,
-  util::bridge::BridgeMessage,
+  protocol::{BridgeCommand, BridgeEvent},
 };
 
 pub fn create_websocket(
   port: u16,
   app: &AppHandle,
-  transport_recv: &flume::Receiver<BridgeMessage>,
+  transport_recv: &flume::Receiver<BridgeCommand>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let server = TcpListener::bind(format!("127.0.0.1:{port}"))?;
   info!("Websocket server started on port {port}");
@@ -49,7 +45,7 @@ pub fn create_websocket(
 fn ws_stream(
   stream: TcpStream,
   app: &AppHandle,
-  transport_recv: &flume::Receiver<BridgeMessage>,
+  transport_recv: &flume::Receiver<BridgeCommand>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let mut websocket = accept(stream)?;
 
@@ -62,22 +58,19 @@ fn ws_stream(
       match websocket.read() {
         Ok(msg) if msg.is_close() => {
           info!("Stream closed");
-          app.update(|state| state.voice_users = vec![]);
+          app.apply(BridgeEvent::ChannelLeft);
           break 'outer;
         }
         Ok(msg) if msg.is_empty() => {}
-        Ok(msg) => {
-          let msg = msg.to_string();
-          let msg: BridgeMessage = serde_json::from_str(&msg)?;
-          if let Err(e) = handle_ws_message(&msg, app) {
-            error!("Failed to handle websocket message: {e}");
-          }
-        }
+        Ok(msg) => match serde_json::from_str::<BridgeEvent>(&msg.to_string()) {
+          Ok(event) => app.apply(event),
+          Err(e) => warn!("Ignoring bridge message: {e}"),
+        },
         Err(tungstenite::Error::Io(ref e)) if e.kind() == std::io::ErrorKind::WouldBlock => break,
         Err(e) => {
           // socket is dead, exit so this thread stops draining messages.
           error!("Websocket read error: {e}");
-          app.update(|state| state.voice_users = vec![]);
+          app.apply(BridgeEvent::ChannelLeft);
           break 'outer;
         }
       }
@@ -96,146 +89,5 @@ fn ws_stream(
 
     std::thread::sleep(std::time::Duration::from_millis(10));
   }
-  Ok(())
-}
-
-pub fn handle_ws_message(
-  msg: &BridgeMessage,
-  app: &AppHandle,
-) -> Result<(), Box<dyn std::error::Error>> {
-  let data = msg.data.clone();
-
-  match msg.cmd.as_str() {
-    "REGISTER_CONFIG" => {
-      let user_id = msg
-        .data
-        .get("userId")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string();
-      app.update(|state| state.user_id = user_id);
-    }
-    "CHANNEL_JOINED" => {
-      let data = serde_json::from_value::<ChannelJoinPayload>(data)?;
-      app.update(|state| {
-        let user_id = state.user_id.clone();
-        let mut users = Vec::with_capacity(data.states.len());
-
-        for voice_state in data.states {
-          if voice_state.user_id == user_id {
-            state.current_channel = voice_state
-              .channel_id
-              .clone()
-              .unwrap_or_else(|| "0".to_owned());
-          }
-          users.push(voice_state.into());
-        }
-
-        state.voice_users = users;
-      });
-    }
-    "VOICE_STATE_UPDATE" => {
-      let channel_is_null = msg
-        .data
-        .get("state")
-        .and_then(|v| v.get("channelId"))
-        .is_some_and(Value::is_null);
-      let mut data = serde_json::from_value::<UpdatePayload>(msg.data.clone())?;
-
-      app.update(|state| {
-        let should_remove = match &data.state.channel_id {
-          Some(channel_id) => channel_id != &state.current_channel,
-          None => channel_is_null,
-        };
-
-        if should_remove {
-          state
-            .voice_users
-            .retain(|user| user.id != data.state.user_id);
-
-          return;
-        }
-
-        let grace_ms = state.config.speaking_grace_ms;
-        let existing = state
-          .voice_users
-          .iter_mut()
-          .find(|user| user.id == data.state.user_id);
-
-        if let Some(user) = existing {
-          // Update existing data whenever possible
-          if let Some(username) = data.state.username.as_ref() {
-            user.name.clone_from(username);
-          }
-          if let Some(avatar) = data.state.avatar_url.as_ref() {
-            user.avatar.clone_from(avatar);
-          }
-
-          if data.state.streaming.is_none() {
-            data.state.streaming = Some(user.streaming);
-          }
-          let voice_state = UserVoiceState::from(&data.state);
-          let is_speaking_update = data.state.mute.is_none() && data.state.deaf.is_none();
-          let keep_speaking = voice_state == UserVoiceState::NotSpeaking
-            && user.voice_state == UserVoiceState::Speaking;
-          if voice_state == UserVoiceState::Speaking {
-            user.grace_until = None;
-          }
-          if keep_speaking && is_speaking_update {
-            app.start_grace(user, grace_ms);
-          } else if !keep_speaking {
-            user.voice_state = voice_state;
-          }
-          user.streaming = data.state.streaming.unwrap_or_default();
-        } else if data.state.channel_id.is_some() && data.state.username.is_some() {
-          // Only add new user if everything is present
-          state.voice_users.push(data.state.into());
-        }
-      });
-    }
-    "CHANNEL_LEFT" => {
-      app.update(|state| {
-        state.voice_users = vec![];
-        state.current_channel = String::new();
-      });
-    }
-    "MESSAGE_NOTIFICATION" => {
-      let mut data = serde_json::from_value::<NotificationPayload>(data)?;
-      data.message.timestamp = Some(chrono::Utc::now().timestamp());
-      data.message.icon = data.message.icon.replace(".webp", ".png");
-      app.notify(data.message);
-    }
-    "STREAMER_MODE" => {
-      let is_censor = msg
-        .data
-        .get("enabled")
-        .and_then(Value::as_bool)
-        .unwrap_or_default();
-      app.update(|state| state.is_censor = is_censor);
-    }
-    "SOUNDBOARD_UPDATE" => {
-      let sounds = match data.get("sounds") {
-        Some(sounds) => serde_json::from_value::<Vec<SoundboardSoundPayload>>(sounds.clone())?,
-        None => serde_json::from_value::<Vec<SoundboardSoundPayload>>(data)?,
-      };
-      let mut by_guild: HashMap<String, Vec<_>> = HashMap::new();
-      for sound in sounds {
-        by_guild
-          .entry(sound.guild_id.clone().unwrap_or_default())
-          .or_default()
-          .push(sound);
-      }
-      app.update(|state| {
-        for (guild_id, sounds) in by_guild {
-          state.soundboard_cache.insert(guild_id, sounds);
-        }
-      });
-    }
-    "OPEN_CONFIG" => app.open_config()?,
-    _ => {
-      warn!("Unknown command: {}", msg.cmd);
-    }
-  }
-
   Ok(())
 }

@@ -96,7 +96,7 @@ fn apply_config_change(
 mod tests {
   use super::apply_config_change;
   use orbolay_core::{
-    app_state::{AppHandle, SharedAppState},
+    app_state::{AppHandle, AppState},
     config::Config,
   };
   use std::cell::RefCell;
@@ -111,9 +111,9 @@ mod tests {
       display_idx: Some(1),
       ..Config::default()
     };
-    let (redraw_tx, _) = flume::unbounded();
+    let (redraw_tx, _) = flume::bounded(1);
     let (open_config_tx, _) = flume::unbounded();
-    let app = AppHandle::new(SharedAppState::default(), redraw_tx, open_config_tx);
+    let (app, _commands) = AppHandle::new(AppState::default(), redraw_tx, open_config_tx);
     // The settings UI updates app state before the file watcher reloads it.
     app.update(|state| state.config = new_config.clone());
 

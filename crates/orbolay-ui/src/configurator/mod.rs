@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 use freya::{prelude::*, winit::window::WindowId};
 
 use orbolay_core::{
-  app_state::{AppHandle, SharedAppState},
+  app_state::{AppHandle, AppState},
   config::{Config, load_config},
 };
 
@@ -71,14 +71,10 @@ fn show_window(id: WindowId) {
 
 pub fn open_configurator_standalone() {
   // Basically a blocking, standalone version of open_configurator
-  let shared = SharedAppState::default();
-  let (redraw_tx, _) = flume::unbounded();
+  let (redraw_tx, _) = flume::bounded(1);
   let (open_config_tx, _) = flume::unbounded();
-  let app = AppHandle::new(shared, redraw_tx, open_config_tx);
-
-  if let Ok(saved) = load_config() {
-    app.update(|state| state.config = saved);
-  }
+  let state = AppState::new(load_config().unwrap_or_default());
+  let (app, _commands) = AppHandle::new(state, redraw_tx, open_config_tx);
 
   launch(LaunchConfig::new().with_window(configurator_window(app, true)));
 }
@@ -101,7 +97,7 @@ fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {
   use_init_theme(dark_theme);
 
   // Make the recording flag available to KeybindControl
-  let recording_flag = app.read(|state| state.recording_keybind.clone());
+  let recording_flag = app.recording_keybind().clone();
   let recording = recording_flag.clone();
   use_provide_context(move || recording_flag);
 

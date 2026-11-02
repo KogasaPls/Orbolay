@@ -8,10 +8,10 @@ use gumdrop::Options;
 use log::{info, warn};
 use orbolay_control::Command;
 use orbolay_core::{
-  app_state::{AppHandle, AppState, SharedAppState},
+  app_state::{AppHandle, AppState},
   config::{Config, Corner, LoadError, load_config, save_config},
   dirs::ensure_config_dirs,
-  util::bridge::BridgeMessage,
+  protocol::BridgeCommand,
 };
 use orbolay_keys::KeyEvent;
 use orbolay_transport::{create_transport_thread, start_config_watcher};
@@ -28,16 +28,10 @@ use winit::{
   window::WindowLevel,
 };
 
-use crate::{
-  display::{select_monitor, update_monitor, window_size_for_display},
-  manager::OverlayManager,
-  notifications::create_notification_thread,
-};
+use crate::display::{select_monitor, update_monitor, window_size_for_display};
 
 mod display;
 mod keys;
-mod manager;
-mod notifications;
 mod target;
 mod window;
 
@@ -238,128 +232,67 @@ struct Startup {
 }
 
 fn app(startup: Startup) -> impl IntoElement {
-  let Startup {
-    port,
-    debug,
-    first_run,
-    config: initial_config,
-  } = startup;
-  let mut app_state = use_state(AppState::new);
+  let mut model = use_state(|| AppState::new(startup.config.clone()));
+  let mut is_open = use_state(|| false);
   let mut soundboard_open = use_state(|| false);
 
-  let app_handle = use_hook(move || {
-    let (transport_sender, transport_recv) = flume::unbounded::<BridgeMessage>();
-    let (redraw_tx, redraw_rx) = flume::unbounded::<()>();
-    let (action_tx, action_rx) = flume::unbounded::<KeyEvent>();
-    let (open_config_tx, open_config_rx) = flume::unbounded::<()>();
+  let app = use_hook(move || {
+    let (redraw_tx, redraw_rx) = flume::bounded(1);
+    let (open_config_tx, open_config_rx) = flume::unbounded();
+    let (toggle_tx, toggle_rx) = flume::unbounded::<KeyEvent>();
+    let (app, commands) = AppHandle::new(
+      AppState::new(startup.config.clone()),
+      redraw_tx,
+      open_config_tx,
+    );
 
-    app_state.write().transport_sender = Some(transport_sender.clone());
-
-    // Shared state for background threads
-    let mut initial = AppState::new();
-    initial.transport_sender = Some(transport_sender);
-
-    initial.config = initial_config;
-
-    let shared: SharedAppState = std::sync::Arc::new(std::sync::RwLock::new(initial));
-    let app = AppHandle::new(shared.clone(), redraw_tx, open_config_tx);
-
-    if !debug {
+    if !startup.debug {
       window::set_clickable(false);
     }
 
-    keys::watch_keybinds(shared.clone(), action_tx.clone());
+    start_background(&app, &startup, commands, toggle_tx);
 
-    let ctrl_app = app.clone();
-
-    orbolay_control::start(move |cmd| match cmd {
-      Command::ToggleOverlay => {
-        if !ctrl_app.read(|state| state.recording_keybind.load(Ordering::Relaxed)) {
-          let _ = action_tx.send(KeyEvent::ToggleOverlay);
-        }
-      }
-      Command::Mute => ctrl_app.send(BridgeMessage {
-        cmd: "TOGGLE_MUTE".to_string(),
-        data: serde_json::Value::Null,
-      }),
-      Command::Deafen => ctrl_app.send(BridgeMessage {
-        cmd: "TOGGLE_DEAF".to_string(),
-        data: serde_json::Value::Null,
-      }),
-    });
-
-    create_transport_thread(app.clone(), port, transport_recv);
-    create_notification_thread(app.clone());
-
-    // sync SharedAppState -> AppState on every redraw signal
-    let shared_sync = shared;
+    let snapshot_app = app.clone();
     spawn_in_window(async move {
-      while redraw_rx.recv_async().await == Ok(()) {
-        let synced = shared_sync.read().unwrap().clone();
-        let transport_sender = app_state.read().transport_sender.clone();
-        let is_open = app_state.read().is_open;
-        *app_state.write() = AppState {
-          transport_sender,
-          is_open,
-          ..synced
-        };
-      }
-    });
-
-    if first_run {
-      let _ = app.open_config();
-      app.redraw();
-
-      // Write the config regardless so we don't trigger this in the future
-      if let Err(err) = save_config(&app.read(|state| state.config.clone())) {
-        warn!("Failed to save config.json: {err}");
-      }
-    }
-
-    start_config_watcher(app.clone(), |old_config, new_config| {
-      // Reposition the window when the target monitor changes
-      if old_config.display_name != new_config.display_name
-        || old_config.display_idx != new_config.display_idx
-      {
-        update_monitor(new_config);
+      while redraw_rx.recv_async().await.is_ok() {
+        model.set(snapshot_app.snapshot());
       }
     });
 
     spawn_in_window(async move {
-      while let Ok(event) = action_rx.recv_async().await {
-        match event {
-          KeyEvent::ToggleOverlay => OverlayManager::toggle(app_state),
-        }
+      while matches!(toggle_rx.recv_async().await, Ok(KeyEvent::ToggleOverlay)) {
+        let open = !is_open();
+        is_open.set(open);
       }
     });
 
     let config_app = app.clone();
     spawn_in_window(async move {
-      while open_config_rx.recv_async().await == Ok(()) {
-        OverlayManager::close(app_state);
+      while open_config_rx.recv_async().await.is_ok() {
+        is_open.set(false);
         open_configurator(&config_app);
       }
     });
 
+    if startup.first_run {
+      let _ = app.open_config();
+    }
+
     app
   });
 
-  // Sync is_open -> cursor hit-test, and close soundboard when overlay closes
+  // Make the window click-through while closed, and close the soundboard with it
   use_side_effect(move || {
-    let is_open = app_state.read().is_open;
-    if !is_open {
-      soundboard_open.set(false);
+    let open = is_open();
+    if !open {
+      soundboard_open.set_if_modified(false);
     }
-    window::set_clickable(is_open);
+    window::set_clickable(open);
   });
 
-  let state = app_state.read();
-  let voice_users = state.voice_users.clone();
-  let messages = state.messages.clone();
-  let messages_enabled = state.config.enable_message_notifications;
-  let is_open = state.is_open;
-  let is_censor = state.is_censor;
-  let config = state.config.clone();
+  let state = model.read();
+  let config = &state.config;
+  let open = is_open();
   let ui_scale = UiScale::new(config.ui_scale).factor();
   let theme = theme::Theme::from_values(
     theme::from_tuple(config.accent),
@@ -371,14 +304,55 @@ fn app(startup: Startup) -> impl IntoElement {
     .iter()
     .find(|u| u.id == state.user_id)
     .cloned();
-  drop(state);
 
   let settings_alignment = Corner::unused(&[config.user_alignment, config.message_alignment])
     .unwrap_or(Corner::BottomLeft);
+  let settings_app = app.clone();
   let open_settings: EventHandler<()> = (move |()| {
-    let _ = app_handle.open_config();
+    let _ = settings_app.open_config();
   })
   .into();
+
+  let voice = VoiceSection {
+    app: app.clone(),
+    voice_users: state.voice_users.clone(),
+    self_id: state.user_id.clone(),
+    is_open: open,
+    is_censor: state.is_censor,
+    user_alignment: config.user_alignment,
+    user_offset_x: config.user_offset_x,
+    user_offset_y: config.user_offset_y,
+    display_voice_members: config.display_voice_members,
+    speaking_grace_style: config.speaking_grace_style,
+    theme,
+    ui_scale,
+    user_template_size: (320, 62),
+    user_template: config.user_template.clone(),
+  };
+  let messages = config
+    .enable_message_notifications
+    .then(|| MessagesSection {
+      app: app.clone(),
+      messages: state.messages.clone(),
+      is_open: open,
+      is_censor: state.is_censor,
+      message_alignment: config.message_alignment,
+      message_offset_x: config.message_offset_x,
+      message_offset_y: config.message_offset_y,
+      messages_semitransparent: config.messages_semitransparent,
+      notification_template: config.notification_template.clone(),
+      theme,
+      ui_scale,
+    });
+  let soundboard = Soundboard {
+    app: app.clone(),
+    soundboard: state.soundboard.clone(),
+    current_guild_id: state.current_guild_id.clone(),
+    has_nitro: state.premium_type.has_nitro(),
+    theme,
+    ui_scale,
+  };
+  drop(state);
 
   rect()
     .width(Size::fill())
@@ -387,53 +361,22 @@ fn app(startup: Startup) -> impl IntoElement {
     .child(
       rect()
         .position(Position::new_absolute().top(0.).left(0.))
-        .background(if is_open {
+        .background(if open {
           theme.transparent_gray
         } else {
           Color::TRANSPARENT
         })
         .width(Size::fill())
         .height(Size::fill())
-        .on_press(move |_| {
-          OverlayManager::close(app_state);
-        }),
+        .on_press(move |_| is_open.set(false)),
     )
-    // Voice users
-    .child(VoiceSection {
-      voice_users,
-      app_state,
-      is_open,
-      is_censor,
-      user_alignment: config.user_alignment,
-      user_offset_x: config.user_offset_x,
-      user_offset_y: config.user_offset_y,
-      display_voice_members: config.display_voice_members,
-      speaking_grace_style: config.speaking_grace_style,
-      theme,
-      ui_scale,
-      user_template_size: (320, 62),
-      user_template: config.user_template.clone(),
-    })
-    // Messages
-    .maybe(messages_enabled, |el| el.child(MessagesSection {
-      messages,
-      is_open,
-      is_censor,
-      message_alignment: config.message_alignment,
-      message_offset_x: config.message_offset_x,
-      message_offset_y: config.message_offset_y,
-      messages_semitransparent: config.messages_semitransparent,
-      notification_template: config.notification_template.clone(),
-      app_state,
-      theme,
-      ui_scale,
-    }))
+    .child(voice)
+    .maybe_child(messages)
     // Voice controls + soundboard
-    .maybe(is_open, |el| {
+    .maybe(open, |el| {
       el
         // Transparent backdrop that catches clicks outside the popup to dismiss it
-        // TODO maybe rework to be used for any sort of popup
-        .maybe(*soundboard_open.read(), |el| {
+        .maybe(soundboard_open(), |el| {
           el.child(
             rect()
               .position(Position::new_absolute().top(0.).left(0.))
@@ -450,16 +393,10 @@ fn app(startup: Startup) -> impl IntoElement {
             .cross_align(Alignment::Center)
             .height(Size::percent(90.0_f32))
             .width(Size::fill())
-            .maybe(*soundboard_open.read(), |el| {
-              el.child(Soundboard {
-                app_state,
-                theme,
-                ui_scale,
-              })
-            })
+            .maybe(soundboard_open(), |el| el.child(soundboard))
             .child(VoiceControls {
               user,
-              app_state,
+              app: app.clone(),
               soundboard_open,
               theme,
               ui_scale,
@@ -467,11 +404,50 @@ fn app(startup: Startup) -> impl IntoElement {
         }))
     })
     // Settings button
-    .maybe(is_open, |el| {
+    .maybe(open, |el| {
       el.child(SettingsButton {
         on_click: open_settings.clone(),
         alignment: settings_alignment,
         ui_scale,
       })
     })
+}
+
+/// Starts the threads that feed the shared state: keybinds, the control socket, the bridge
+/// transport, and the config file watcher.
+fn start_background(
+  app: &AppHandle,
+  startup: &Startup,
+  commands: flume::Receiver<BridgeCommand>,
+  toggle_tx: flume::Sender<KeyEvent>,
+) {
+  keys::watch_keybinds(app.clone(), toggle_tx.clone());
+
+  let ctrl_app = app.clone();
+  orbolay_control::start(move |cmd| match cmd {
+    Command::ToggleOverlay => {
+      if !ctrl_app.recording_keybind().load(Ordering::Relaxed) {
+        let _ = toggle_tx.send(KeyEvent::ToggleOverlay);
+      }
+    }
+    Command::Mute => ctrl_app.send(BridgeCommand::ToggleMute),
+    Command::Deafen => ctrl_app.send(BridgeCommand::ToggleDeaf),
+  });
+
+  create_transport_thread(app.clone(), startup.port, commands);
+
+  if startup.first_run
+    && let Err(err) = save_config(&startup.config)
+  {
+    warn!("Failed to save config.json: {err}");
+  }
+
+  start_config_watcher(app.clone(), |old_config, new_config| {
+    // Reposition the window when the target monitor changes
+    if old_config.display_name != new_config.display_name
+      || old_config.display_idx != new_config.display_idx
+    {
+      update_monitor(new_config);
+    }
+  });
 }

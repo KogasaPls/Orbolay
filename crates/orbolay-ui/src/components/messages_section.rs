@@ -1,6 +1,6 @@
 use freya::prelude::*;
 
-use orbolay_core::{app_state::AppState, config::Corner, payloads::Notification};
+use orbolay_core::{app_state::AppHandle, config::Corner, payloads::Notification};
 
 use crate::{
   components::MessageRow,
@@ -18,7 +18,7 @@ pub struct MessagesSection {
   pub message_offset_y: i32,
   pub messages_semitransparent: bool,
   pub notification_template: Option<String>,
-  pub app_state: State<AppState>,
+  pub app: AppHandle,
   pub theme: Theme,
   pub ui_scale: f32,
 }
@@ -54,7 +54,7 @@ impl Component for MessagesSection {
           el
         } else {
           el.child(MessageRow {
-            app_state: self.app_state,
+            app: self.app.clone(),
             message: message.clone(),
             theme: self.theme,
             box_size: (400, 66),

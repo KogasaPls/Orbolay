@@ -3,7 +3,7 @@ use std::time::Instant;
 use freya::prelude::*;
 
 use orbolay_core::{
-  app_state::AppState,
+  app_state::AppHandle,
   config::{Axis, Corner, DisplayVoiceMembers, SpeakingGraceStyle},
   user::{User, UserVoiceState},
   util::text::censor,
@@ -17,8 +17,9 @@ use crate::{
 
 #[derive(PartialEq)]
 pub struct VoiceSection {
-  pub app_state: State<AppState>,
+  pub app: AppHandle,
   pub voice_users: Vec<User>,
+  pub self_id: String,
   pub is_open: bool,
   pub is_censor: bool,
   pub user_alignment: Corner,
@@ -84,7 +85,7 @@ impl Component for VoiceSection {
             u.name = censor(&u.name);
           }
 
-          let is_self = self.app_state.read().user_id == u.id;
+          let is_self = self.self_id == u.id;
           let can_context_menu = false;
           let is_voice_semitransparent = dimmed
             || matches!(
@@ -93,7 +94,7 @@ impl Component for VoiceSection {
             );
 
           let row: Element = UserRow {
-            app_state: self.app_state,
+            app: self.app.clone(),
             user: u,
             is_self,
             is_open: self.is_open,

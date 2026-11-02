@@ -1,10 +1,8 @@
+use std::time::Instant;
+
 use serde::Deserialize;
 
-fn default_timeout_secs() -> i64 {
-  5
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Notification {
   pub title: String,
@@ -14,26 +12,9 @@ pub struct Notification {
   pub channel_id: Option<String>,
   pub message_id: Option<String>,
 
-  // Stuff not part of the Discord payload
-  #[serde(default, skip_deserializing)]
-  pub timestamp: Option<i64>,
-  #[serde(default = "default_timeout_secs", skip_deserializing)]
-  pub timeout_secs: i64,
-}
-
-impl Default for Notification {
-  fn default() -> Self {
-    Self {
-      title: String::new(),
-      body: String::new(),
-      icon: String::new(),
-      guild_id: None,
-      channel_id: None,
-      message_id: None,
-      timestamp: Some(chrono::Utc::now().timestamp()),
-      timeout_secs: 5,
-    }
-  }
+  /// When the notification disappears, set once it is shown.
+  #[serde(skip)]
+  pub expires_at: Option<Instant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -49,7 +30,3 @@ pub struct SoundboardSoundPayload {
   // Can this be used?
   pub available: bool,
 }
-
-pub mod ws;
-
-pub use ws::{ChannelJoinPayload, NotificationPayload, UpdatePayload, WsVoiceState};

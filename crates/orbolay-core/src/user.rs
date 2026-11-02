@@ -49,10 +49,10 @@ pub struct User {
   pub grace_until: Option<Instant>,
 }
 
-use crate::payloads::WsVoiceState;
+use crate::protocol::VoiceStatePayload;
 
-impl From<WsVoiceState> for User {
-  fn from(val: WsVoiceState) -> Self {
+impl From<VoiceStatePayload> for User {
+  fn from(val: VoiceStatePayload) -> Self {
     let voice_state = UserVoiceState::from(&val);
 
     Self {
@@ -68,8 +68,8 @@ impl From<WsVoiceState> for User {
   }
 }
 
-impl From<&WsVoiceState> for UserVoiceState {
-  fn from(val: &WsVoiceState) -> Self {
+impl From<&VoiceStatePayload> for UserVoiceState {
+  fn from(val: &VoiceStatePayload) -> Self {
     match (val.mute, val.deaf, val.speaking) {
       (_, Some(true), _) => Self::Deafened,
       (Some(true), _, _) => Self::Muted,
