@@ -55,7 +55,7 @@ pub fn to_hex(color: Color) -> String {
 /// Parse a `#RRGGBB` (or `RRGGBB`) string into a color
 pub fn from_hex(value: &str) -> Option<Color> {
   let hex = value.trim().trim_start_matches('#');
-  if hex.len() != 6 {
+  if hex.len() != 6 || !hex.is_ascii() {
     return None;
   }
   let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
@@ -97,4 +97,26 @@ fn blend(base: Color, tint: Color, tint_strength: f32) -> Color {
 fn with_alpha(color: Color, alpha: u8) -> Color {
   let RGB { r, g, b } = color.to_rgb();
   Color::new((u32::from(alpha) << 24) | (u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b))
+}
+
+#[cfg(test)]
+mod tests {
+  use freya::prelude::Color;
+
+  use super::{from_hex, to_hex};
+
+  #[test]
+  fn hex_round_trips() {
+    let color = Color::from_rgb(0x1E, 0x1F, 0x23);
+    assert_eq!(to_hex(color), "#1E1F23");
+    assert_eq!(from_hex("#1e1f23"), Some(color));
+    assert_eq!(from_hex(" 1E1F23 "), Some(color));
+  }
+
+  #[test]
+  fn invalid_hex_is_rejected_without_panicking() {
+    for input in ["", "#12345", "#1234567", "zzzzzz", "€abc", "ab€c"] {
+      assert_eq!(from_hex(input), None, "{input:?}");
+    }
+  }
 }
