@@ -148,6 +148,9 @@ impl AppState {
     if let Some(streaming) = state.streaming.take() {
       user.streaming = streaming;
     }
+    if let Some(camera) = state.camera {
+      user.camera = camera;
+    }
     if let Some(volume) = state.volume {
       user.volume = volume;
     }
@@ -619,6 +622,19 @@ mod tests {
       now,
     );
     assert_eq!(voice_state(&state, "new"), None);
+  }
+
+  #[test]
+  fn full_updates_carry_the_camera() {
+    let mut state = joined();
+    state.apply(
+      update(VoiceStatePayload {
+        camera: Some(true),
+        ..member("peer")
+      }),
+      Instant::now(),
+    );
+    assert!(state.voice_users.iter().any(|u| u.id == "peer" && u.camera));
   }
 
   #[test]
