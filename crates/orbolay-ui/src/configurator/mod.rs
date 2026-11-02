@@ -71,9 +71,8 @@ fn show_window(id: WindowId) {
 pub fn open_configurator_standalone() {
   // Basically a blocking, standalone version of open_configurator
   let (redraw_tx, _) = flume::bounded(1);
-  let (open_config_tx, _) = flume::unbounded();
   let state = AppState::new(load_config().unwrap_or_default());
-  let (app, _commands) = AppHandle::new(state, redraw_tx, open_config_tx);
+  let (app, _commands) = AppHandle::new(state, redraw_tx);
 
   launch(LaunchConfig::new().with_window(configurator_window(app, true)));
 }

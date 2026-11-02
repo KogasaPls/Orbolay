@@ -230,13 +230,8 @@ fn app(startup: Startup) -> impl IntoElement {
 
   let app = use_hook(move || {
     let (redraw_tx, redraw_rx) = flume::bounded(1);
-    let (open_config_tx, open_config_rx) = flume::unbounded();
     let (toggle_tx, toggle_rx) = flume::unbounded::<()>();
-    let (app, commands) = AppHandle::new(
-      AppState::new(startup.config.clone()),
-      redraw_tx,
-      open_config_tx,
-    );
+    let (app, commands) = AppHandle::new(AppState::new(startup.config.clone()), redraw_tx);
 
     start_background(&app, &startup, commands, toggle_tx);
 
@@ -275,16 +270,9 @@ fn app(startup: Startup) -> impl IntoElement {
       }
     });
 
-    let config_app = app.clone();
-    spawn_in_window(async move {
-      while open_config_rx.recv_async().await.is_ok() {
-        is_open.set(false);
-        open_configurator(&config_app);
-      }
-    });
-
     if startup.first_run {
-      let _ = app.open_config();
+      let config_app = app.clone();
+      spawn_in_window(async move { open_configurator(&config_app) });
     }
 
     app
@@ -318,7 +306,8 @@ fn app(startup: Startup) -> impl IntoElement {
     .unwrap_or(Corner::BottomLeft);
   let settings_app = app.clone();
   let open_settings: EventHandler<()> = (move |()| {
-    let _ = settings_app.open_config();
+    is_open.set(false);
+    open_configurator(&settings_app);
   })
   .into();
 

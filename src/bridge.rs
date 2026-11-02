@@ -145,8 +145,7 @@ mod tests {
 
   async fn start() -> Harness {
     let (redraw_tx, _redraw_rx) = flume::bounded(1);
-    let (open_config_tx, _open_config_rx) = flume::unbounded();
-    let (app, commands) = AppHandle::new(AppState::default(), redraw_tx, open_config_tx);
+    let (app, commands) = AppHandle::new(AppState::default(), redraw_tx);
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("ws://{}", listener.local_addr().unwrap());
     tokio::spawn(serve_listener(app.clone(), listener, commands));

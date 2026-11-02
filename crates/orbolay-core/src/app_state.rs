@@ -236,7 +236,6 @@ impl AppState {
 pub struct AppHandle {
   shared: Arc<RwLock<AppState>>,
   redraw_tx: flume::Sender<()>,
-  open_config_tx: flume::Sender<()>,
   timer_tx: flume::Sender<Timer>,
   command_tx: flume::Sender<BridgeCommand>,
   recording_keybind: Arc<AtomicBool>,
@@ -248,14 +247,12 @@ impl AppHandle {
   pub fn new(
     state: AppState,
     redraw_tx: flume::Sender<()>,
-    open_config_tx: flume::Sender<()>,
   ) -> (Self, flume::Receiver<BridgeCommand>) {
     let (timer_tx, timer_rx) = flume::unbounded();
     let (command_tx, command_rx) = flume::unbounded();
     let app = Self {
       shared: Arc::new(RwLock::new(state)),
       redraw_tx,
-      open_config_tx,
       timer_tx,
       command_tx,
       recording_keybind: Arc::new(AtomicBool::new(false)),
@@ -375,10 +372,6 @@ impl AppHandle {
   /// Requests a redraw; a full channel already has one pending.
   fn redraw(&self) {
     let _ = self.redraw_tx.try_send(());
-  }
-
-  pub fn open_config(&self) -> Result<(), flume::SendError<()>> {
-    self.open_config_tx.send(())
   }
 }
 
@@ -695,8 +688,7 @@ mod tests {
   #[test]
   fn config_subscribers_only_hear_real_changes() {
     let (redraw_tx, _redraw_rx) = flume::bounded(1);
-    let (open_config_tx, _open_config_rx) = flume::unbounded();
-    let (app, _commands) = super::AppHandle::new(AppState::default(), redraw_tx, open_config_tx);
+    let (app, _commands) = super::AppHandle::new(AppState::default(), redraw_tx);
     let changes = app.subscribe_config();
 
     app.set_config(|config| config.port = 7000);
