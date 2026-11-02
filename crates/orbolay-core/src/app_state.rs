@@ -8,7 +8,7 @@ use std::{
 use crate::{
   config::Config,
   protocol::{BridgeCommand, BridgeEvent, Notification, SoundboardSoundPayload, VoiceStatePayload},
-  user::User,
+  user::{Speech, User},
 };
 
 /// How long a notification stays on screen.
@@ -163,25 +163,24 @@ impl AppState {
     }
     // Full updates carry `speaking: false` regardless; only speaking updates change it.
     let is_speaking_update = state.mute.is_none() && state.deaf.is_none();
-    match state.speaking {
-      Some(true) if is_speaking_update => {
-        user.speaking = true;
-        user.grace_until = None;
+    if !is_speaking_update {
+      return None;
+    }
+    match (state.speaking, user.speech) {
+      (Some(true), _) => {
+        user.speech = Speech::Speaking;
         return None;
       }
-      Some(false) if is_speaking_update && user.speaking => {}
+      (Some(false), Speech::Speaking) if grace.is_zero() => {
+        user.speech = Speech::Silent;
+        return None;
+      }
+      (Some(false), Speech::Speaking) => {}
       _ => return None,
-    }
-    if grace.is_zero() {
-      user.speaking = false;
-      return None;
-    }
-    if user.grace_until.is_some() {
-      return None;
     }
 
     let until = now + grace;
-    user.grace_until = Some(until);
+    user.speech = Speech::Grace { until };
     Some(Timer {
       at: until,
       kind: TimerKind::GraceEnd {
@@ -210,12 +209,11 @@ impl AppState {
         let Some(user) = self
           .voice_users
           .iter_mut()
-          .find(|user| user.id == *user_id && user.grace_until == Some(timer.at))
+          .find(|user| user.id == *user_id && user.speech == Speech::Grace { until: timer.at })
         else {
           return false;
         };
-        user.grace_until = None;
-        user.speaking = false;
+        user.speech = Speech::Silent;
         true
       }
       TimerKind::ExpireMessages => {

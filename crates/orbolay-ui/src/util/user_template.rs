@@ -142,7 +142,7 @@ fn avatar_url(user: &User) -> String {
 #[cfg(test)]
 mod tests {
   use freya::prelude::Color;
-  use orbolay_core::user::User;
+  use orbolay_core::user::{Speech, User};
 
   use super::{load_user_template, render_user};
   use crate::util::theme::Theme;
@@ -154,11 +154,10 @@ mod tests {
       avatar: avatar.into(),
       muted,
       deafened: false,
-      speaking: false,
+      speech: Speech::Silent,
       streaming: true,
       camera: false,
       volume: 100.,
-      grace_until: None,
     }
   }
 

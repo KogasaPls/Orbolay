@@ -20,12 +20,21 @@ pub struct User {
   pub avatar: String,
   pub muted: bool,
   pub deafened: bool,
-  /// Stays true during the speaking grace period, until `grace_until` passes.
-  pub speaking: bool,
+  pub speech: Speech,
   pub streaming: bool,
   pub camera: bool,
   pub volume: f32,
-  pub grace_until: Option<Instant>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum Speech {
+  #[default]
+  Silent,
+  Speaking,
+  /// Stopped speaking but still shown as speaking until `until`.
+  Grace {
+    until: Instant,
+  },
 }
 
 impl User {
@@ -34,7 +43,7 @@ impl User {
       UserVoiceState::Deafened
     } else if self.muted {
       UserVoiceState::Muted
-    } else if self.speaking {
+    } else if !matches!(self.speech, Speech::Silent) {
       UserVoiceState::Speaking
     } else {
       UserVoiceState::NotSpeaking
@@ -52,11 +61,14 @@ impl From<VoiceStatePayload> for User {
       avatar: val.avatar_url.unwrap_or_default(),
       muted: val.mute.unwrap_or_default(),
       deafened: val.deaf.unwrap_or_default(),
-      speaking: val.speaking.unwrap_or_default(),
+      speech: if val.speaking == Some(true) {
+        Speech::Speaking
+      } else {
+        Speech::Silent
+      },
       streaming: val.streaming.unwrap_or_default(),
       camera: val.camera.unwrap_or_default(),
       volume: val.volume.unwrap_or(100.),
-      grace_until: None,
     }
   }
 }

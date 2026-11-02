@@ -4,7 +4,7 @@ use freya::prelude::*;
 use orbolay_core::{
   app_state::AppHandle,
   config::{Axis, Corner, DisplayVoiceMembers, SpeakingGraceStyle},
-  user::{User, UserVoiceState},
+  user::{Speech, User, UserVoiceState},
 };
 
 use crate::{
@@ -50,7 +50,7 @@ impl Component for VoiceSection {
       .into_iter()
       .filter(|user| match self.display_voice_members {
         DisplayVoiceMembers::Always | DisplayVoiceMembers::AlwaysSemiTransparent => true,
-        DisplayVoiceMembers::WhenSpeaking => user.speaking || self.is_open,
+        DisplayVoiceMembers::WhenSpeaking => user.speech != Speech::Silent || self.is_open,
       })
       .collect();
 
@@ -72,9 +72,9 @@ impl Component for VoiceSection {
           let dimmed = self.display_voice_members == DisplayVoiceMembers::WhenSpeaking
             && self.speaking_grace_style == SpeakingGraceStyle::Dimmed
             && u.voice_state() == UserVoiceState::Speaking
-            && u.grace_until.is_some_and(|until| until > now);
+            && matches!(u.speech, Speech::Grace { until } if until > now);
           if dimmed {
-            u.speaking = false;
+            u.speech = Speech::Silent;
           }
 
           if self.is_censor {
