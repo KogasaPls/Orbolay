@@ -52,9 +52,7 @@ impl Component for VoiceSection {
       .into_iter()
       .filter(|user| match self.display_voice_members {
         DisplayVoiceMembers::Always | DisplayVoiceMembers::AlwaysSemiTransparent => true,
-        DisplayVoiceMembers::WhenSpeaking => {
-          user.voice_state == UserVoiceState::Speaking || self.is_open
-        }
+        DisplayVoiceMembers::WhenSpeaking => user.speaking || self.is_open,
       })
       .collect();
 
@@ -75,10 +73,10 @@ impl Component for VoiceSection {
           let mut u = user.clone();
           let dimmed = self.display_voice_members == DisplayVoiceMembers::WhenSpeaking
             && self.speaking_grace_style == SpeakingGraceStyle::Dimmed
-            && u.voice_state == UserVoiceState::Speaking
+            && u.voice_state() == UserVoiceState::Speaking
             && u.grace_until.is_some_and(|until| until > now);
           if dimmed {
-            u.voice_state = UserVoiceState::NotSpeaking;
+            u.speaking = false;
           }
 
           if self.is_censor {

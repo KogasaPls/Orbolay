@@ -63,7 +63,7 @@ pub fn render_user(
     .replace(
       MUTED_ICON_TOKEN,
       &status_icon(
-        user.voice_state == UserVoiceState::Muted,
+        user.voice_state() == UserVoiceState::Muted,
         "muted",
         MUTED_ICON,
       ),
@@ -71,7 +71,7 @@ pub fn render_user(
     .replace(
       DEAFENED_ICON_TOKEN,
       &status_icon(
-        user.voice_state == UserVoiceState::Deafened,
+        user.voice_state() == UserVoiceState::Deafened,
         "deafened",
         DEAFENED_ICON,
       ),
@@ -102,7 +102,7 @@ fn live_indicator(active: bool) -> String {
 pub fn user_template_classes(user: &User, is_self: bool) -> Vec<&'static str> {
   let mut classes = Vec::new();
 
-  match user.voice_state {
+  match user.voice_state() {
     UserVoiceState::Speaking => classes.push("speaking"),
     UserVoiceState::Muted => classes.push("muted"),
     UserVoiceState::Deafened => classes.push("deafened"),
@@ -143,17 +143,19 @@ fn avatar_url(user: &User) -> String {
 #[cfg(test)]
 mod tests {
   use freya::prelude::Color;
-  use orbolay_core::user::{User, UserVoiceState};
+  use orbolay_core::user::User;
 
   use super::{load_user_template, render_user};
   use crate::util::theme::Theme;
 
-  fn user(avatar: &str, voice_state: UserVoiceState) -> User {
+  fn user(avatar: &str, muted: bool) -> User {
     User {
       name: "<b>Name</b>".into(),
       id: "175928847299117063".into(),
       avatar: avatar.into(),
-      voice_state,
+      muted,
+      deafened: false,
+      speaking: false,
       streaming: true,
       camera: false,
       volume: 100.,
@@ -168,7 +170,7 @@ mod tests {
 
   #[test]
   fn builtin_template_renders_state_classes_and_tokens() {
-    let html = render(&user("abc", UserVoiceState::Muted), true, true);
+    let html = render(&user("abc", true), true, true);
     assert!(
       html.contains(r#"class="muted streaming self right""#),
       "{html}"
@@ -185,7 +187,7 @@ mod tests {
 
   #[test]
   fn missing_avatar_uses_the_default_avatar_for_the_user_id() {
-    let html = render(&user("", UserVoiceState::NotSpeaking), false, false);
+    let html = render(&user("", false), false, false);
     assert!(html.contains(r#"class="streaming no-avatar""#));
     assert!(html.contains("https://cdn.discordapp.com/embed/avatars/"));
   }

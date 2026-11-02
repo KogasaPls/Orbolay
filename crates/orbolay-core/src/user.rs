@@ -29,7 +29,8 @@ impl TryFrom<u64> for PremiumType {
   }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// What a member's voice status looks like: deafened outranks muted, which outranks speaking.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UserVoiceState {
   Speaking,
   NotSpeaking,
@@ -38,43 +39,53 @@ pub enum UserVoiceState {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[expect(
+  clippy::struct_excessive_bools,
+  reason = "independent voice flags reported by Discord"
+)]
 pub struct User {
   pub name: String,
   pub id: String,
   pub avatar: String,
-  pub voice_state: UserVoiceState,
+  pub muted: bool,
+  pub deafened: bool,
+  /// Stays true during the speaking grace period, until `grace_until` passes.
+  pub speaking: bool,
   pub streaming: bool,
   pub camera: bool,
   pub volume: f32,
   pub grace_until: Option<Instant>,
 }
 
-use crate::protocol::VoiceStatePayload;
-
-impl From<VoiceStatePayload> for User {
-  fn from(val: VoiceStatePayload) -> Self {
-    let voice_state = UserVoiceState::from(&val);
-
-    Self {
-      name: val.username.unwrap_or_else(|| "Unknown".to_owned()),
-      id: val.user_id,
-      avatar: val.avatar_url.unwrap_or_default(),
-      voice_state,
-      streaming: val.streaming.unwrap_or_default(),
-      camera: val.camera.unwrap_or_default(),
-      volume: val.volume.unwrap_or(100.),
-      grace_until: None,
+impl User {
+  pub const fn voice_state(&self) -> UserVoiceState {
+    if self.deafened {
+      UserVoiceState::Deafened
+    } else if self.muted {
+      UserVoiceState::Muted
+    } else if self.speaking {
+      UserVoiceState::Speaking
+    } else {
+      UserVoiceState::NotSpeaking
     }
   }
 }
 
-impl From<&VoiceStatePayload> for UserVoiceState {
-  fn from(val: &VoiceStatePayload) -> Self {
-    match (val.mute, val.deaf, val.speaking) {
-      (_, Some(true), _) => Self::Deafened,
-      (Some(true), _, _) => Self::Muted,
-      (_, _, Some(true)) => Self::Speaking,
-      _ => Self::NotSpeaking,
+use crate::protocol::VoiceStatePayload;
+
+impl From<VoiceStatePayload> for User {
+  fn from(val: VoiceStatePayload) -> Self {
+    Self {
+      name: val.username.unwrap_or_else(|| "Unknown".to_owned()),
+      id: val.user_id,
+      avatar: val.avatar_url.unwrap_or_default(),
+      muted: val.mute.unwrap_or_default(),
+      deafened: val.deaf.unwrap_or_default(),
+      speaking: val.speaking.unwrap_or_default(),
+      streaming: val.streaming.unwrap_or_default(),
+      camera: val.camera.unwrap_or_default(),
+      volume: val.volume.unwrap_or(100.),
+      grace_until: None,
     }
   }
 }

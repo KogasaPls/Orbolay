@@ -46,7 +46,7 @@ impl Component for UserRow {
     let scale = UiScale::new(self.ui_scale);
     let width = scale.px(self.box_size.0 as f32);
     let height = scale.px(self.box_size.1 as f32);
-    let opacity = if self.user.voice_state != UserVoiceState::Speaking
+    let opacity = if self.user.voice_state() != UserVoiceState::Speaking
       && self.is_voice_semitransparent
       && !self.is_open
     {

@@ -1,10 +1,6 @@
 use freya::prelude::*;
 
-use orbolay_core::{
-  app_state::AppHandle,
-  protocol::BridgeCommand,
-  user::{User, UserVoiceState},
-};
+use orbolay_core::{app_state::AppHandle, protocol::BridgeCommand, user::User};
 
 use crate::util::{
   scale::{GapsScaleExt, UiScale},
@@ -87,8 +83,8 @@ impl Component for VoiceControls {
       (move |()| app.send(command.clone())).into()
     };
     let mut soundboard_open = self.soundboard_open;
-    let is_muted = self.user.voice_state == UserVoiceState::Muted;
-    let is_deafened = self.user.voice_state == UserVoiceState::Deafened;
+    let is_muted = self.user.muted;
+    let is_deafened = self.user.deafened;
     let is_streaming = self.user.streaming;
 
     rect()

@@ -9,7 +9,7 @@ use crate::{
   config::Config,
   payloads::{Notification, SoundboardSoundPayload},
   protocol::{BridgeCommand, BridgeEvent, VoiceStatePayload},
-  user::{PremiumType, User, UserVoiceState},
+  user::{PremiumType, User},
 };
 
 /// How long a notification stays on screen.
@@ -160,25 +160,25 @@ impl AppState {
       user.volume = volume;
     }
 
-    let voice_state = UserVoiceState::from(&state);
+    if let Some(muted) = state.mute {
+      user.muted = muted;
+    }
+    if let Some(deafened) = state.deaf {
+      user.deafened = deafened;
+    }
+    // Full updates carry `speaking: false` regardless; only speaking updates change it.
     let is_speaking_update = state.mute.is_none() && state.deaf.is_none();
-    let stopped_speaking =
-      voice_state == UserVoiceState::NotSpeaking && user.voice_state == UserVoiceState::Speaking;
-
-    if voice_state == UserVoiceState::Speaking {
-      user.grace_until = None;
-    }
-    if !stopped_speaking {
-      user.voice_state = voice_state;
-      return None;
-    }
-    // A full state update that omits `speaking` does not end speaking; the next speaking
-    // update does.
-    if !is_speaking_update {
-      return None;
+    match state.speaking {
+      Some(true) if is_speaking_update => {
+        user.speaking = true;
+        user.grace_until = None;
+        return None;
+      }
+      Some(false) if is_speaking_update && user.speaking => {}
+      _ => return None,
     }
     if grace.is_zero() {
-      user.voice_state = UserVoiceState::NotSpeaking;
+      user.speaking = false;
       return None;
     }
     if user.grace_until.is_some() {
@@ -220,9 +220,7 @@ impl AppState {
           return false;
         };
         user.grace_until = None;
-        if user.voice_state == UserVoiceState::Speaking {
-          user.voice_state = UserVoiceState::NotSpeaking;
-        }
+        user.speaking = false;
         true
       }
       TimerKind::ExpireMessages => {
@@ -419,7 +417,7 @@ mod tests {
     config::Config,
     payloads::{Notification, SoundboardSoundPayload},
     protocol::{BridgeEvent, VoiceStatePayload},
-    user::UserVoiceState,
+    user::{User, UserVoiceState},
   };
 
   const GRACE: Duration = Duration::from_millis(300);
@@ -473,7 +471,7 @@ mod tests {
       .voice_users
       .iter()
       .find(|u| u.id == user_id)
-      .map(|u| u.voice_state.clone())
+      .map(User::voice_state)
   }
 
   fn grace_end(at: Instant) -> Timer {
@@ -562,6 +560,50 @@ mod tests {
     );
     assert_eq!(effects, NO_EFFECTS);
     assert_eq!(voice_state(&state, "peer"), Some(UserVoiceState::Muted));
+  }
+
+  #[test]
+  fn silence_after_muting_keeps_the_mute() {
+    let mut state = joined();
+    let now = Instant::now();
+    state.apply(speaking("peer", true), now);
+    state.apply(
+      update(VoiceStatePayload {
+        mute: Some(true),
+        ..member("peer")
+      }),
+      now,
+    );
+    state.apply(speaking("peer", false), now);
+    assert_eq!(voice_state(&state, "peer"), Some(UserVoiceState::Muted));
+    state.fire(&grace_end(now + GRACE), now + GRACE);
+
+    state.apply(
+      update(VoiceStatePayload {
+        mute: Some(false),
+        ..member("peer")
+      }),
+      now,
+    );
+    assert_eq!(
+      voice_state(&state, "peer"),
+      Some(UserVoiceState::NotSpeaking)
+    );
+  }
+
+  #[test]
+  fn full_updates_do_not_change_speaking() {
+    let mut state = joined();
+    let now = Instant::now();
+    state.apply(speaking("peer", true), now);
+    state.apply(
+      update(VoiceStatePayload {
+        speaking: Some(false),
+        ..member("peer")
+      }),
+      now,
+    );
+    assert_eq!(voice_state(&state, "peer"), Some(UserVoiceState::Speaking));
   }
 
   #[test]
