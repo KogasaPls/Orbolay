@@ -3,8 +3,10 @@ use orbolay_core::{
   user::{User, UserVoiceState},
 };
 
-use crate::util::html_template::{Template, TemplateSpec, TemplateStore, escape_html, fill};
-use crate::util::theme::Theme;
+use crate::util::{
+  html_template::{Template, TemplateSpec, TemplateStore, escape_html, fill},
+  theme::Theme,
+};
 
 const NAME_TOKEN: &str = "{{name}}";
 const AVATAR_TOKEN: &str = "{{avatar}}";

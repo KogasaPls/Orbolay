@@ -1,5 +1,4 @@
 use freya::prelude::*;
-
 use orbolay_core::{app_state::AppHandle, config::Corner, protocol::Notification};
 
 use crate::{

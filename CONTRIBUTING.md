@@ -1,7 +1,9 @@
 # Development
 
-Run `cargo fmt`, `cargo clippy --workspace --all-targets -- -D warnings`, and
-`cargo test --workspace` before committing; CI runs all three. The workspace enables
+Run `cargo +nightly fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`, and
+`cargo test --workspace` before committing; CI runs all three. Formatting uses nightly rustfmt for
+the import options in `rustfmt.toml`; builds and clippy use the stable toolchain from
+`rust-toolchain.toml`. Plain `cargo fmt` runs stable rustfmt, which skips those options and warns. The workspace enables
 `clippy::pedantic` in `Cargo.toml`, and an `#[expect]` with a `reason` is the way to accept a
 specific lint. Freya's [system libraries](https://docs.rs/freya/latest/freya/_docs/development_setup/)
 are required to build.

@@ -1,18 +1,17 @@
-use std::cell::Cell;
-use std::sync::atomic::Ordering;
+use std::{cell::Cell, sync::atomic::Ordering};
 
 use freya::{prelude::*, winit::window::WindowId};
-
 use orbolay_core::{
   app_state::{AppHandle, AppState},
   config::{Config, load_config},
 };
-
-use crate::populate_monitor_cache;
-use crate::util::theme::{GRAY, MUTED_GRAY};
-
 use sections::{Section, Settings, apply_config};
 use sidebar::sidebar;
+
+use crate::{
+  populate_monitor_cache,
+  util::theme::{GRAY, MUTED_GRAY},
+};
 
 mod buttons;
 mod color_picker;

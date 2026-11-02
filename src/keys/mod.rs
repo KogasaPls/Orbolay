@@ -13,10 +13,9 @@ use std::{
 use evdev::{Device, EventStream, EventSummary};
 use log::{debug, info, warn};
 use notify::{EventKind, RecursiveMode, Watcher};
-use tokio::task::JoinSet;
-
 use orbolay_core::{app_state::AppHandle, config::Config};
 use orbolay_keys::{Key, KeyEvent, KeyState, Keybind, strings_to_keys};
+use tokio::task::JoinSet;
 
 const INPUT_DIR: &str = "/dev/input";
 /// udev applies device permissions shortly after the node appears.

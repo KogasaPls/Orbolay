@@ -2,7 +2,6 @@ use std::sync::mpsc;
 
 use log::{error, info, warn};
 use notify::{Event, Result, Watcher};
-
 use orbolay_core::{
   app_state::AppHandle,
   config::{CONFIG_FILE, config_dir, load_config},

@@ -100,6 +100,7 @@ The repository pins the stable toolchain in `rust-toolchain.toml`.
 cargo build --release
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
+cargo +nightly fmt --all
 ```
 
 The binary is `target/release/orbolay`.

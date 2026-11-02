@@ -1,9 +1,10 @@
 use freya::prelude::*;
 
+use super::{
+  buttons::{ResetButton, secondary_button},
+  sections::Section,
+};
 use crate::util::theme::{DARKISH_GRAY, GRAY, LIGHT_GRAY, SUPERLIGHT_GRAY};
-
-use super::buttons::{ResetButton, secondary_button};
-use super::sections::Section;
 
 const SIDEBAR_WIDTH: f32 = 180.;
 

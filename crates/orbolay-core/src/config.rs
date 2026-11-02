@@ -382,8 +382,9 @@ pub fn ensure_config_dirs() {
 
 #[cfg(test)]
 mod tests {
-  use super::{Config, Corner, DisplayVoiceMembers, SpeakingGraceStyle};
   use serde_json::json;
+
+  use super::{Config, Corner, DisplayVoiceMembers, SpeakingGraceStyle};
 
   fn names(displays: &[&str]) -> impl Iterator<Item = Option<String>> {
     displays.iter().map(|name| Some((*name).to_owned()))

@@ -1,10 +1,8 @@
 //! Messages exchanged with the `OrbolayBridge` plugin over the websocket.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 use serde::{Deserialize, Deserializer, Serialize};
-
-use std::time::Instant;
 
 /// A voice participant as the bridge reports it. Speaking updates carry only `user_id` and
 /// `speaking`; full updates carry the remaining fields.
@@ -126,8 +124,9 @@ pub struct SoundboardSoundPayload {
 
 #[cfg(test)]
 mod tests {
-  use super::{BridgeCommand, BridgeEvent, VoiceStatePayload};
   use serde_json::json;
+
+  use super::{BridgeCommand, BridgeEvent, VoiceStatePayload};
 
   fn event(value: serde_json::Value) -> BridgeEvent {
     serde_json::from_value(value).unwrap()

@@ -1,28 +1,28 @@
 use std::str::FromStr;
 
 use freya::prelude::*;
-
 use log::warn;
 use orbolay_core::{
   app_state::AppHandle,
-  config::{Config, Corner, DisplayVoiceMembers, SpeakingGraceStyle, config_dir, save_config},
-  config::{TEMPLATES_DIR, ensure_config_dirs},
+  config::{
+    Config, Corner, DisplayVoiceMembers, SpeakingGraceStyle, TEMPLATES_DIR, config_dir,
+    ensure_config_dirs, save_config,
+  },
   protocol::Notification,
 };
-
-use crate::monitors::monitors_list;
-use crate::util::theme::{DARKISH_GRAY, LIGHT_GRAY, SUPERLIGHT_GRAY, from_tuple, to_tuple};
-use crate::util::{
-  notification_template::list_notification_templates, user_template::list_user_templates,
-};
-
 use orbolay_keys::{keys_to_strings, strings_to_keys};
 
-use super::buttons::wide_button;
-use super::keybind::KeybindControl;
 use super::{
-  color_picker::ColorPickerControl, dropdown::DropdownControl, input::InputControl,
-  setting::SettingRow, toggle::ToggleControl,
+  buttons::wide_button, color_picker::ColorPickerControl, dropdown::DropdownControl,
+  input::InputControl, keybind::KeybindControl, setting::SettingRow, toggle::ToggleControl,
+};
+use crate::{
+  monitors::monitors_list,
+  util::{
+    notification_template::list_notification_templates,
+    theme::{DARKISH_GRAY, LIGHT_GRAY, SUPERLIGHT_GRAY, from_tuple, to_tuple},
+    user_template::list_user_templates,
+  },
 };
 
 const UI_SCALE_OPTIONS: &[f32] = &[0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];

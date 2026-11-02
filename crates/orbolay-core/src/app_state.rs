@@ -7,8 +7,7 @@ use std::{
 
 use crate::{
   config::Config,
-  protocol::{BridgeCommand, BridgeEvent, VoiceStatePayload},
-  protocol::{Notification, SoundboardSoundPayload},
+  protocol::{BridgeCommand, BridgeEvent, Notification, SoundboardSoundPayload, VoiceStatePayload},
   user::User,
 };
 
@@ -393,8 +392,7 @@ mod tests {
   use super::{AppState, MAX_NOTIFICATIONS, Timer, TimerKind};
   use crate::{
     config::Config,
-    protocol::{BridgeEvent, VoiceStatePayload},
-    protocol::{Notification, SoundboardSoundPayload},
+    protocol::{BridgeEvent, Notification, SoundboardSoundPayload, VoiceStatePayload},
     user::{User, UserVoiceState},
   };
 

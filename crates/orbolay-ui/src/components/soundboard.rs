@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
 use freya::prelude::*;
-
 use orbolay_core::{
   app_state::{AppHandle, Soundboard as SoundboardState},
-  protocol::BridgeCommand,
-  protocol::SoundboardSoundPayload,
+  protocol::{BridgeCommand, SoundboardSoundPayload},
 };
 
 use crate::util::{

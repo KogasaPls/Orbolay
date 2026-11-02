@@ -2,8 +2,10 @@ use freya::{
   html::{HtmlSource, HtmlViewer, use_html},
   prelude::*,
 };
-
-use orbolay_core::{app_state::AppHandle, protocol::BridgeCommand, protocol::Notification};
+use orbolay_core::{
+  app_state::AppHandle,
+  protocol::{BridgeCommand, Notification},
+};
 
 use crate::util::{
   notification_template::{load_notification_template, render_notification},

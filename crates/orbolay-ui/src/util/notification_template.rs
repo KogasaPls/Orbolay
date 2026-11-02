@@ -1,9 +1,10 @@
 use orbolay_core::{config::NOTIFICATION_TEMPLATES, protocol::Notification};
 
-use crate::util::text::strip;
-
-use crate::util::html_template::{Template, TemplateSpec, TemplateStore, escape_html, fill};
-use crate::util::theme::Theme;
+use crate::util::{
+  html_template::{Template, TemplateSpec, TemplateStore, escape_html, fill},
+  text::strip,
+  theme::Theme,
+};
 
 const TITLE_TOKEN: &str = "{{title}}";
 const BODY_TOKEN: &str = "{{body}}";

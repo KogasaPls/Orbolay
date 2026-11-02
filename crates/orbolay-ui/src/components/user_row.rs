@@ -2,7 +2,6 @@ use freya::{
   html::{HtmlSource, HtmlViewer, use_html},
   prelude::*,
 };
-
 use orbolay_core::{
   app_state::AppHandle,
   user::{User, UserVoiceState},

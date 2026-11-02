@@ -1,7 +1,6 @@
 use std::time::Instant;
 
 use freya::prelude::*;
-
 use orbolay_core::{
   app_state::AppHandle,
   config::{Axis, Corner, DisplayVoiceMembers, SpeakingGraceStyle},
@@ -11,8 +10,7 @@ use orbolay_core::{
 use crate::{
   components::UserRow,
   layout::{corner_gaps, to_alignment},
-  util::text::censor,
-  util::{scale::UiScale, theme::Theme},
+  util::{scale::UiScale, text::censor, theme::Theme},
 };
 
 #[derive(PartialEq)]

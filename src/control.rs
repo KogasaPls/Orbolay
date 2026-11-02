@@ -1,7 +1,6 @@
 use std::io::{BufRead, BufReader, Write};
 
-use interprocess::local_socket::{GenericFilePath, ToFsName};
-use interprocess::local_socket::{ListenerOptions, prelude::*};
+use interprocess::local_socket::{GenericFilePath, ListenerOptions, ToFsName, prelude::*};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 

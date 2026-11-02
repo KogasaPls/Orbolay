@@ -2,14 +2,12 @@
 
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
-use tokio::{net::TcpListener, task::JoinHandle};
-use tokio_tungstenite::{accept_async, tungstenite::Message};
-
 use orbolay_core::{
   app_state::AppHandle,
-  protocol::Notification,
-  protocol::{BridgeCommand, BridgeEvent},
+  protocol::{BridgeCommand, BridgeEvent, Notification},
 };
+use tokio::{net::TcpListener, task::JoinHandle};
+use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 /// Accepts bridge connections on `127.0.0.1:port`. A new connection replaces the previous one,
 /// so commands always reach the most recently connected client.
@@ -127,7 +125,6 @@ pub fn start(app: AppHandle, port: u16, commands: flume::Receiver<BridgeCommand>
 mod tests {
   use std::time::Duration;
 
-  use super::serve_listener;
   use futures_util::{SinkExt, StreamExt};
   use orbolay_core::{
     app_state::{AppHandle, AppState},
@@ -136,6 +133,8 @@ mod tests {
   use serde_json::json;
   use tokio::net::TcpListener;
   use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
+
+  use super::serve_listener;
 
   type Client = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
