@@ -287,6 +287,18 @@ mod tests {
   }
 
   #[test]
+  fn repeats_keep_a_held_key_from_going_stale() {
+    let bind = toggle();
+    let mut state = KeyState::default();
+    let now = Instant::now();
+    state.process(&bind, Key::ControlLeft, true, now);
+    state.process(&bind, Key::ControlLeft, true, now + Duration::from_secs(4));
+    let later = now + Duration::from_secs(8);
+    state.process(&bind, Key::ControlLeft, true, later);
+    assert!(state.process(&bind, Key::BackQuote, true, later));
+  }
+
+  #[test]
   fn an_empty_bind_cannot_be_built() {
     assert_eq!(Keybind::new(Vec::new()), None);
   }

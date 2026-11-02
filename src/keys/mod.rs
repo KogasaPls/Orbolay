@@ -103,6 +103,11 @@ fn listen_until_changed(
 async fn listen(bind: &Keybind, pressed_tx: &flume::Sender<()>) -> Infallible {
   let keys = bind.keys();
   let (key_tx, key_rx) = flume::unbounded::<(Key, bool)>();
+  // Watch before enumerating so a device plugged in meanwhile is not missed; one reported by both
+  // is read twice, which KeyState tolerates.
+  let (added_tx, added_rx) = flume::unbounded::<PathBuf>();
+  let _watcher = watch_new_devices(added_tx);
+
   let mut readers = JoinSet::new();
   let mut opened = 0;
   for (path, device) in evdev::enumerate() {
@@ -118,9 +123,6 @@ async fn listen(bind: &Keybind, pressed_tx: &flume::Sender<()>) -> Infallible {
     info!("Listening for the overlay keybind on {opened} device(s)");
   }
 
-  let (added_tx, added_rx) = flume::unbounded::<PathBuf>();
-  let _watcher = watch_new_devices(added_tx);
-
   let mut state = KeyState::default();
   loop {
     tokio::select! {
@@ -130,6 +132,7 @@ async fn listen(bind: &Keybind, pressed_tx: &flume::Sender<()>) -> Infallible {
           let _ = pressed_tx.send(());
         }
       }
+      Some(_) = readers.join_next() => {}
       Ok(path) = added_rx.recv_async() => {
         let (keys, key_tx) = (keys.to_vec(), key_tx.clone());
         readers.spawn(async move {
@@ -190,13 +193,14 @@ fn stream(path: &std::path::Path, device: Device) -> Option<EventStream> {
   }
 }
 
-/// Sends each key press and release until the device or the listener goes away.
+/// Sends each key press, repeat, and release until the device or the listener goes away. Repeats
+/// count as presses, so a held key does not go stale.
 async fn forward(mut events: EventStream, key_tx: &flume::Sender<(Key, bool)>) {
   loop {
     match events.next_event().await.map(EventSummary::from) {
-      Ok(EventSummary::Key(_, code, value @ (0 | 1))) => {
+      Ok(EventSummary::Key(_, code, value @ 0..=2)) => {
         if let Some(key) = Key::from_code(code)
-          && key_tx.send((key, value == 1)).is_err()
+          && key_tx.send((key, value != 0)).is_err()
         {
           return;
         }
