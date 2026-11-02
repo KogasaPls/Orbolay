@@ -8,7 +8,7 @@ use interprocess::{
   TryClone,
   local_socket::{ListenerOptions, prelude::*},
 };
-use orbolay_logging::{error, log, warn};
+use orbolay_logging::{debug, error, log, warn};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,7 +90,7 @@ fn serve(stream: LocalSocketStream, handler: &impl Fn(Command)) {
 
     match serde_json::from_str::<Command>(&cmd_line) {
       Ok(cmd) => {
-        log!("Received control command: {:?}", cmd);
+        debug!("Received control command: {:?}", cmd);
         handler(cmd);
       }
       Err(e) => warn!("Invalid control command: {}", e),

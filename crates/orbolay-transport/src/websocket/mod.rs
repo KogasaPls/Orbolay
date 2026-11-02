@@ -1,4 +1,4 @@
-use orbolay_logging::{error, log, success, warn};
+use orbolay_logging::{debug, error, log, success, warn};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::net::{TcpListener, TcpStream};
@@ -85,7 +85,7 @@ fn ws_stream(
 
     if let Ok(msg) = transport_recv.try_recv() {
       let msg = serde_json::to_string(&msg)?;
-      log!("Sending message to websocket: {:?}", msg);
+      debug!("Sending message to websocket: {:?}", msg);
       websocket
         .write(Message::Text(Utf8Bytes::from(msg)))
         .unwrap_or_else(|_| error!("Failed to send message to websocket, socket closed?"));
