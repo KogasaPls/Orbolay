@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use freya::prelude::*;
 use orbolay_core::{
   app_state::AppHandle,
@@ -9,6 +11,9 @@ use crate::util::{
   scale::{GapsScaleExt, UiScale},
   theme::Theme,
 };
+
+/// How long the volume slider must rest before the new volume is sent to Discord.
+const VOLUME_SEND_DELAY: Duration = Duration::from_millis(150);
 
 #[derive(PartialEq)]
 pub struct UserContextMenuItem {
@@ -26,6 +31,7 @@ impl Component for UserContextMenuItem {
     // The slider runs 0-100 over Discord's 0-MAX_VOLUME range
     let to_slider = |volume: f32| f64::from(volume / MAX_VOLUME * 100.);
     let mut slider_value = use_state(|| to_slider(self.user.volume));
+    let mut pending_send = use_state(|| None::<TaskHandle>);
 
     let menu_item_theme = MenuItemThemePartial {
       background: Some(Preference::Specific(self.theme.darkish_gray)),
@@ -80,12 +86,19 @@ impl Component for UserContextMenuItem {
           )
           .child(
             Slider::new(move |value: f64| {
-              let volume = value / 100. * f64::from(MAX_VOLUME);
               slider_value.set(value);
-              app.send(BridgeCommand::SetUserVolume {
-                user_id: user_id.clone(),
-                volume,
-              });
+              // Send once the slider settles instead of on every drag step
+              if let Some(task) = pending_send.write().take() {
+                task.try_cancel();
+              }
+              let (app, user_id) = (app.clone(), user_id.clone());
+              pending_send.set(Some(spawn_in_window(async move {
+                timer(VOLUME_SEND_DELAY).await;
+                app.send(BridgeCommand::SetUserVolume {
+                  user_id,
+                  volume: value / 100. * f64::from(MAX_VOLUME),
+                });
+              })));
             })
             .theme(slider_theme)
             .value(*slider_value.read())
