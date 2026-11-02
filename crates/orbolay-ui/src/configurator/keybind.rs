@@ -49,23 +49,18 @@ impl Component for KeybindControl {
       AnimColor::new(focus_border_fill, Color::from_rgb(200, 50, 50)).time(500)
     });
 
-    let recording_flag = use_try_consume::<Arc<AtomicBool>>();
+    // Provided by the settings window root
+    let recording_flag = use_consume::<Arc<AtomicBool>>();
 
     // Closing the window while recording must not leave the overlay keybind disabled
     use_drop({
       let recording_flag = recording_flag.clone();
-      move || {
-        if let Some(flag) = &recording_flag {
-          flag.store(false, Ordering::Relaxed);
-        }
-      }
+      move || recording_flag.store(false, Ordering::Relaxed)
     });
 
     use_side_effect(move || {
       let is_focused = focus_status.read().is_focused();
-      if let Some(flag) = &recording_flag {
-        flag.store(is_focused, Ordering::Relaxed);
-      }
+      recording_flag.store(is_focused, Ordering::Relaxed);
       let mut anim = border_anim;
       if is_focused {
         anim.start();
