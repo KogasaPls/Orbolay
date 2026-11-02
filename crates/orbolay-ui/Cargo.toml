@@ -5,7 +5,6 @@ edition = "2024"
 rust-version = "1.95"
 
 [dependencies]
-bytes = { workspace = true }
 flume = { workspace = true }
 freya = { workspace = true }
 orbolay-core = { path = "../orbolay-core" }
@@ -15,7 +14,6 @@ open = { workspace = true }
 scraper = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-ureq = { workspace = true }
 url = { workspace = true }
 winit = { workspace = true }
 rdev = { workspace = true }

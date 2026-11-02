@@ -68,17 +68,6 @@ impl From<WsVoiceState> for User {
   }
 }
 
-impl From<WsVoiceState> for UserVoiceState {
-  fn from(val: WsVoiceState) -> Self {
-    match (val.mute, val.deaf, val.speaking) {
-      (_, Some(true), _) => Self::Deafened,
-      (Some(true), _, _) => Self::Muted,
-      (_, _, Some(true)) => Self::Speaking,
-      _ => Self::NotSpeaking,
-    }
-  }
-}
-
 impl From<&WsVoiceState> for UserVoiceState {
   fn from(val: &WsVoiceState) -> Self {
     match (val.mute, val.deaf, val.speaking) {

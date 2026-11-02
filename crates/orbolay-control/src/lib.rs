@@ -1,10 +1,7 @@
 use std::io::{BufRead, BufReader, Write};
 
 use interprocess::local_socket::{GenericFilePath, ToFsName};
-use interprocess::{
-  TryClone,
-  local_socket::{ListenerOptions, prelude::*},
-};
+use interprocess::local_socket::{ListenerOptions, prelude::*};
 use orbolay_logging::{debug, error, log, warn};
 use serde::{Deserialize, Serialize};
 
@@ -98,11 +95,5 @@ impl Client {
     payload.push('\n');
     self.stream.write_all(payload.as_bytes())?;
     Ok(())
-  }
-
-  pub fn fork(&self) -> Result<Self, Box<dyn std::error::Error>> {
-    Ok(Self {
-      stream: self.stream.try_clone()?,
-    })
   }
 }

@@ -184,7 +184,7 @@ pub fn handle_ws_message(
           if data.state.streaming.is_none() {
             data.state.streaming = Some(user.streaming);
           }
-          let voice_state = UserVoiceState::from(data.state.clone());
+          let voice_state = UserVoiceState::from(&data.state);
           let is_speaking_update = data.state.mute.is_none() && data.state.deaf.is_none();
           let keep_speaking = voice_state == UserVoiceState::NotSpeaking
             && user.voice_state == UserVoiceState::Speaking;
