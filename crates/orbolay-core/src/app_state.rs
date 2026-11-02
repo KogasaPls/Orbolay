@@ -13,8 +13,6 @@ use crate::{
 
 /// How long a notification stays on screen.
 pub const NOTIFICATION_TIMEOUT: Duration = Duration::from_secs(5);
-/// How long a member is shown as playing a soundboard sound, which Discord caps at about 5 s.
-pub const SOUNDBOARD_INDICATOR: Duration = Duration::from_secs(3);
 /// How many notifications are shown at once.
 pub const MAX_NOTIFICATIONS: usize = 3;
 
@@ -70,10 +68,6 @@ pub enum TimerKind {
     user_id: String,
   },
   ExpireMessages,
-  /// Stop showing the member as playing the soundboard sound that was set to end at `at`.
-  SoundEnd {
-    user_id: String,
-  },
 }
 
 impl AppState {
@@ -124,14 +118,8 @@ impl AppState {
       BridgeEvent::Speaking { user_id, speaking } => {
         return self.set_speaking(&user_id, speaking, now);
       }
-      BridgeEvent::SoundboardPlayed { user_id } => {
-        let user = self.member_mut(&user_id)?;
-        let until = now + SOUNDBOARD_INDICATOR;
-        user.sound_until = Some(until);
-        return Some(Timer {
-          at: until,
-          kind: TimerKind::SoundEnd { user_id },
-        });
+      BridgeEvent::SoundboardPlaying { user_id, playing } => {
+        self.member_mut(&user_id)?.playing_sound = playing;
       }
       BridgeEvent::ChannelLeft => self.call = None,
       BridgeEvent::MessageNotification { mut message } => {
@@ -233,16 +221,6 @@ impl AppState {
           return false;
         };
         user.speech = Speech::Silent;
-        true
-      }
-      TimerKind::SoundEnd { user_id } => {
-        let Some(user) = self
-          .member_mut(user_id)
-          .filter(|user| user.sound_until == Some(timer.at))
-        else {
-          return false;
-        };
-        user.sound_until = None;
         true
       }
       TimerKind::ExpireMessages => {
@@ -662,31 +640,28 @@ mod tests {
   }
 
   #[test]
-  fn a_soundboard_sound_marks_the_member_until_its_timer() {
+  fn soundboard_events_mark_members_in_the_call() {
     let mut state = joined();
     let now = Instant::now();
-    let played = |user_id: &str| BridgeEvent::SoundboardPlayed {
+    let playing = |user_id: &str, playing| BridgeEvent::SoundboardPlaying {
       user_id: user_id.into(),
+      playing,
     };
-    let sound = |state: &AppState| {
+    let peer = |state: &AppState| {
       state
         .members()
         .iter()
         .find(|u| u.id == "peer")
         .unwrap()
-        .sound_until
+        .playing_sound
     };
 
-    let first = state.apply(played("peer"), now).unwrap();
-    let second = state.apply(played("peer"), now + GRACE).unwrap();
-    assert!(
-      !state.fire(&first, first.at),
-      "an older sound's timer must not end a newer one"
-    );
-    assert_eq!(sound(&state), Some(second.at));
-    assert!(state.fire(&second, second.at));
-    assert_eq!(sound(&state), None);
-    assert_eq!(state.apply(played("stranger"), now), None);
+    assert_eq!(state.apply(playing("peer", true), now), None);
+    assert!(peer(&state));
+    state.apply(playing("peer", false), now);
+    assert!(!peer(&state));
+    state.apply(playing("stranger", true), now);
+    assert!(state.members().iter().all(|u| !u.playing_sound));
   }
 
   #[test]

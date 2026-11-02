@@ -108,7 +108,7 @@ fn user_template_classes(user: &User, is_self: bool) -> Vec<&'static str> {
     UserVoiceState::NotSpeaking => {}
   }
 
-  if user.playing_sound() {
+  if user.playing_sound {
     classes.push("soundboard");
   }
 
@@ -162,7 +162,7 @@ mod tests {
       muted,
       deafened: false,
       speech: Speech::Silent,
-      sound_until: None,
+      playing_sound: false,
       streaming: true,
       camera: false,
       volume: 100.,
@@ -194,7 +194,7 @@ mod tests {
   #[test]
   fn a_member_playing_a_sound_gets_the_soundboard_class() {
     let mut member = user(Some("abc"), false);
-    member.sound_until = Some(std::time::Instant::now());
+    member.playing_sound = true;
     let html = render(&member, false, false);
     assert!(html.contains(r#"class="soundboard streaming""#), "{html}");
   }
