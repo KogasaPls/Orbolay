@@ -203,7 +203,7 @@ fn main() {
 
 /// Logs Orbolay's own crates at `info` and dependencies at `warn` unless `RUST_LOG` overrides it.
 fn init_logging() {
-  const DEFAULT_FILTER: &str = "warn,orbolay=info,orbolay_control=info,orbolay_core=info,orbolay_keys=info,orbolay_transport=info,orbolay_ui=info";
+  const DEFAULT_FILTER: &str = "warn,orbolay=info,orbolay_core=info,orbolay_keys=info,orbolay_ui=info";
 
   let mut builder =
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(DEFAULT_FILTER));

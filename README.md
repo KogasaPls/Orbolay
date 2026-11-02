@@ -66,7 +66,7 @@ selected again.
 ## Logging
 
 Orbolay logs its own crates at `info` and dependencies at `warn` to stderr. Set `RUST_LOG` to
-change that, for example `RUST_LOG=orbolay_transport=debug` to log every bridge command.
+change that, for example `RUST_LOG=orbolay::bridge=debug` to log every bridge command.
 
 ## Hyprland
 
