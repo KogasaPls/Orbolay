@@ -11,7 +11,7 @@ the look and feel however you'd like! The template can be changed at any time in
 
 Custom templates are `.html` files in `~/.config/orbolay/templates/users/` and
 `~/.config/orbolay/templates/notifications/`; the file name without `.html` is the name shown in the settings
-window, and "Open Templates Folder" opens the parent directory. A template is reloaded when its file changes.
+window, and "Open Templates Folder" opens the parent directory. An edited template is picked up the next time a row using it is drawn.
 
 If the template selected is invalid, Orbolay will log and the default will be used.
 
@@ -81,7 +81,7 @@ required `id` attribute.
 * `deafened` - the user is deafened
 * `streaming` - the user is streaming
 * `camera` - the user has their camera on
-* `no-avatar` - there was an issue fetching the avatar or the user otherwise does not have one
+* `no-avatar` - the user has no custom avatar
 * `self` - the user is the current user
 * `right` - the user list is being rendered on the right-hand side of the screen
 

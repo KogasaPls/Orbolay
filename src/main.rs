@@ -21,7 +21,7 @@ use winit::{
 
 use crate::{
   control::Command,
-  display::{select_monitor, update_monitor, window_size_for_display},
+  display::{select_monitor, update_monitor},
 };
 
 mod bridge;
@@ -190,7 +190,7 @@ fn main() {
             if let Some(monitor) = select_monitor(&config, primary.as_ref(), &monitors) {
               // Compute the initial window size for the chosen display.
               w = w
-                .with_inner_size(window_size_for_display(monitor))
+                .with_inner_size(monitor.size())
                 .with_resizable(false)
                 .with_window_level(WindowLevel::AlwaysOnTop)
                 .with_position(monitor.position());

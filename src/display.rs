@@ -1,7 +1,7 @@
 use freya::prelude::{Platform, WinitPlatformExt};
 use log::warn;
 use orbolay_core::config::Config;
-use winit::{dpi::PhysicalSize, monitor::MonitorHandle};
+use winit::monitor::MonitorHandle;
 
 use crate::window::WINDOW_ID;
 
@@ -20,10 +20,6 @@ pub fn select_monitor<'a>(
   monitors.get(config.select_display(&names, primary)?)
 }
 
-pub fn window_size_for_display(monitor: &MonitorHandle) -> PhysicalSize<u32> {
-  monitor.size()
-}
-
 pub fn update_monitor(config: &Config) {
   let config = config.clone();
   let Some(window_id) = *WINDOW_ID.lock().unwrap() else {
@@ -38,6 +34,6 @@ pub fn update_monitor(config: &Config) {
     };
 
     w.set_outer_position(monitor.position());
-    let _ = w.request_inner_size(window_size_for_display(monitor));
+    let _ = w.request_inner_size(monitor.size());
   });
 }

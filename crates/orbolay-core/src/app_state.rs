@@ -241,8 +241,8 @@ impl AppState {
   }
 }
 
-/// Owns the shared state. Background threads mutate it through [`AppHandle::update`] and
-/// [`AppHandle::apply`]; each change signals `redraw_tx`, which the UI drains before taking one
+/// Owns the shared state. Background threads change it through [`AppHandle::apply`],
+/// [`AppHandle::notify`], and [`AppHandle::set_config`]; each change signals `redraw_tx`, which the UI drains before taking one
 /// snapshot, so a burst of updates costs a single render.
 #[derive(Clone)]
 pub struct AppHandle {
