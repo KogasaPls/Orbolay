@@ -103,8 +103,6 @@ pub fn handle_ws_message(
   msg: &BridgeMessage,
   app: AppHandle,
 ) -> Result<(), Box<dyn std::error::Error>> {
-  log!("Received message: {:?}", msg);
-
   let data = msg.data.clone();
 
   match msg.cmd.as_str() {
