@@ -21,9 +21,12 @@ pub fn start(handler: impl Fn(Command) + Send + Sync + 'static) {
   let handler = std::sync::Arc::new(handler);
 
   std::thread::spawn(move || {
-    let Ok(listener) = make_listener() else {
-      error!("Failed to create control listener");
-      return;
+    let listener = match make_listener() {
+      Ok(listener) => listener,
+      Err(e) => {
+        error!("Failed to create the control socket: {e}");
+        return;
+      }
     };
 
     info!("Control socket listening");
@@ -33,7 +36,7 @@ pub fn start(handler: impl Fn(Command) + Send + Sync + 'static) {
         Ok(stream) => {
           let handler = handler.clone();
           std::thread::spawn(move || {
-            serve(stream, handler.as_ref());
+            serve(BufReader::new(stream), handler.as_ref());
             debug!("Control socket client disconnected");
           });
         }
@@ -56,20 +59,21 @@ fn make_listener() -> Result<LocalSocketListener, Box<dyn std::error::Error>> {
   Ok(ListenerOptions::new().name(name).create_sync()?)
 }
 
-fn serve(stream: LocalSocketStream, handler: &impl Fn(Command)) {
-  let mut line = String::new();
-  let mut reader = BufReader::new(stream);
-
-  while reader.read_line(&mut line).unwrap_or(0) > 0 {
-    let cmd_line = line.trim().to_owned();
-
-    if cmd_line.is_empty() {
+/// Runs `handler` for each JSON command line until the client disconnects.
+fn serve(reader: impl BufRead, handler: &impl Fn(Command)) {
+  for line in reader.lines() {
+    let line = match line {
+      Ok(line) => line,
+      Err(e) => {
+        warn!("Control socket read failed: {e}");
+        return;
+      }
+    };
+    let line = line.trim();
+    if line.is_empty() {
       continue;
     }
-
-    line.clear();
-
-    match serde_json::from_str::<Command>(&cmd_line) {
+    match serde_json::from_str::<Command>(line) {
       Ok(cmd) => {
         debug!("Received control command: {cmd:?}");
         handler(cmd);
@@ -95,5 +99,23 @@ impl Client {
     payload.push('\n');
     self.stream.write_all(payload.as_bytes())?;
     Ok(())
+  }
+}
+
+#[cfg(test)]
+mod tests {
+  use std::{cell::RefCell, io::Cursor};
+
+  use super::{Command, serve};
+
+  #[test]
+  fn each_valid_line_runs_one_command() {
+    let received = RefCell::new(Vec::new());
+    let input = "\"toggle-overlay\"\n\n  \nnot json\n\"mute\"\n\"deafen\"";
+    serve(Cursor::new(input), &|cmd| received.borrow_mut().push(cmd));
+    assert_eq!(
+      *received.borrow(),
+      [Command::ToggleOverlay, Command::Mute, Command::Deafen]
+    );
   }
 }
