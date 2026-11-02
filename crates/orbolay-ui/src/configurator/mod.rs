@@ -116,7 +116,11 @@ fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {
   let section = use_state(|| Section::General);
   let window_id = use_hook(Platform::window_id);
 
-  let close = EventHandler::new(move |()| Platform::get().close_window(window_id));
+  // `close_window` skips the `with_on_close` hook, so forget the window here.
+  let close = EventHandler::new(move |()| {
+    CONFIGURATOR.set(None);
+    Platform::get().close_window(window_id);
+  });
   let close_shortcut = close.clone();
 
   let on_reset = EventHandler::new({
