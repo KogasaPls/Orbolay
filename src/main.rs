@@ -2,7 +2,7 @@ use std::sync::{Arc, atomic::Ordering};
 
 use freya::prelude::*;
 use gumdrop::Options;
-use log::warn;
+use log::{info, warn};
 use orbolay_core::{
   app_state::{AppHandle, AppState},
   config::{Config, LoadError, ensure_config_dirs, load_config, save_config},
@@ -142,6 +142,10 @@ fn main() {
   }
 
   if control::Client::connect().is_ok() {
+    if !args.target.is_empty() {
+      info!("Orbolay is already running; launching the program without another overlay");
+      target::run_target(&args.target, wayland_display);
+    }
     eprintln!("Orbolay is already running; stop it before starting another instance.");
     std::process::exit(1);
   }
