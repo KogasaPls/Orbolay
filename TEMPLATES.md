@@ -9,6 +9,10 @@
 Orbolay contains a HTML/CSS renderer used for rendering certain components. This makes it easy to change and modify
 the look and feel however you'd like! The template can be changed at any time in the settings menu.
 
+Custom templates are `.html` files in `~/.config/orbolay/templates/users/` and
+`~/.config/orbolay/templates/notifications/`; the file name without `.html` is the name shown in the settings
+window, and "Open Templates Folder" opens the parent directory. A template is reloaded when its file changes.
+
 If the template selected is invalid, Orbolay will log and the default will be used.
 
 ## Ground Rules
@@ -33,7 +37,8 @@ In order for your template to display the user name, avatar, etc., you will use 
 
 * `{{avatar}}` - the avatar link, example usage: `<img src="{{avatar}}" />`
 * `{{name}}` - this is just text, example usage: `<span>{{name}}</span>`
-* `{{streaming}}` - a `<span />` containing the "LIVE" marking, example usage: `{{speaking}}`
+* `{{streaming}}` - a `<span class="live-indicator">` containing "LIVE" while the user streams, example usage: `{{streaming}}`
+* `{{volume-percent}}` - the local volume you set for the user, 0 to 200 (100 is unchanged)
 * `{{muted-icon}}` - the muted SVG icon, replaced with an empty string when the user is not muted
 * `{{deafened-icon}}` - the deafened SVG icon, replaced with an empty string when the user is not deafened
 * `{{camera-icon}}` - the camera SVG icon, replaced with an empty string when the user does not have their camera on

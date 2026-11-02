@@ -156,7 +156,7 @@ impl Section {
     match self {
       Self::General => "How the overlay opens and where it appears",
       Self::Voice => "Who is shown in the voice list, and where",
-      Self::Notifications => "Popups for incoming messages and calls",
+      Self::Notifications => "Popups for incoming messages",
       Self::Appearance => "Colors, shapes and templates",
       Self::Connection => "How Orbolay connects to Discord",
       Self::Advanced => "Rendering options",
@@ -461,7 +461,7 @@ impl Settings {
     let mut behavior = vec![
       self.toggle(
         "Enable Notifications",
-        "Show notifications for incoming messages, calls, etc.",
+        "Show notifications for incoming messages",
         config.enable_message_notifications,
         |cfg, value| cfg.enable_message_notifications = value,
       ),
