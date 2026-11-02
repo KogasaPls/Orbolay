@@ -104,7 +104,7 @@ pub fn handle_ipc_message(
       }
     }
     "SCREENSHARE_STATE_UPDATE" => {
-      // These are only recieved for the current user, so just set the current user as streaming or not streaming
+      // These are only received for the current user, so just set the current user as streaming or not streaming
       let data = serde_json::from_value::<ScreenshareState>(data)?;
       let current_user_id = state.user_id.clone();
       if let Some(user) = state
@@ -116,7 +116,7 @@ pub fn handle_ipc_message(
       }
     }
     "VIDEO_STATE_UPDATE" => {
-      // These are only recieved for the current user, so just set the current user as "camera active" or not
+      // These are only received for the current user, so just set the current user as "camera active" or not
       let data = serde_json::from_value::<VideoState>(data)?;
       let current_user_id = state.user_id.clone();
       if let Some(user) = state

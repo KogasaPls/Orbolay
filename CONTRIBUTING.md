@@ -39,7 +39,7 @@ without any other program running at all! On Windows and MacOS this kinda just w
 This will likely change when `winit` supports `layer-shell`.
 
 The UI, located in `crates/orbolay-ui`, is nothing special. Freya is used to create some custom elements that we display in the window. Like something akin to React, when the
-global `AppState` changes, the UI will update along with it. Reading the code for these is probably the easiest way to get aquainted with them.
+global `AppState` changes, the UI will update along with it. Reading the code for these is probably the easiest way to get acquainted with them.
 
 ## The Transport Layer
 
