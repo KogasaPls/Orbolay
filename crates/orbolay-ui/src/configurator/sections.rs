@@ -235,7 +235,6 @@ impl Settings {
             update(cfg, n);
           }
         }),
-        true,
       ),
       false,
     )
