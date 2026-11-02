@@ -56,7 +56,6 @@ impl Component for MessagesSection {
             app: self.app.clone(),
             message: message.clone(),
             theme: self.theme,
-            box_size: (400, 66),
             notification_template: self.notification_template.clone(),
             ui_scale: scale,
           })

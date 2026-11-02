@@ -21,6 +21,9 @@ const MUTED_ICON: &str = include_str!("../../../../assets/muted.svg");
 const DEAFENED_ICON: &str = include_str!("../../../../assets/deafened.svg");
 const CAMERA_ICON: &str = include_str!("../../../../assets/camera.svg");
 
+/// Width and height a user template is laid out at, before UI scaling.
+pub const SIZE: (u32, u32) = (320, 62);
+
 static STORE: TemplateStore = TemplateStore::new(TemplateSpec {
   kind: "user",
   dir: USER_TEMPLATES,

@@ -11,6 +11,9 @@ const BODY_TOKEN: &str = "{{body}}";
 const ICON_TOKEN: &str = "{{icon}}";
 const ACTIONS_TOKEN: &str = "{{actions}}";
 
+/// Width and height a notification template is laid out at, before UI scaling.
+pub const SIZE: (u32, u32) = (400, 66);
+
 static STORE: TemplateStore = TemplateStore::new(TemplateSpec {
   kind: "notification",
   dir: NOTIFICATION_TEMPLATES,

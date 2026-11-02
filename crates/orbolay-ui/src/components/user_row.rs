@@ -1,15 +1,12 @@
-use freya::{
-  html::{HtmlSource, HtmlViewer, use_html},
-  prelude::*,
-};
+use freya::prelude::*;
 use orbolay_core::{app_state::AppHandle, user::User};
 
 use crate::{
-  components::user_context_menu_item::UserContextMenuItem,
+  components::{TemplateView, user_context_menu_item::UserContextMenuItem},
   util::{
     scale::{GapsScaleExt, UiScale},
     theme::Theme,
-    user_template::{load_user_template, render_user},
+    user_template::{self, load_user_template, render_user},
   },
 };
 
@@ -21,7 +18,6 @@ pub struct UserRow {
   /// Drawn at half opacity because the member is quiet and the list is semi-transparent.
   pub faded: bool,
   pub theme: Theme,
-  pub box_size: (u32, u32),
   pub user_template: Option<String>,
   pub is_right_aligned: bool,
   pub ui_scale: UiScale,
@@ -35,47 +31,29 @@ impl Component for UserRow {
 
   fn render(&self) -> impl IntoElement {
     let scale = self.ui_scale;
-    let width = scale.px(self.box_size.0 as f32);
-    let height = scale.px(self.box_size.1 as f32);
+    let (width, height) = TemplateView::scaled_size(user_template::SIZE, scale);
     let opacity = if self.faded { 0.5_f32 } else { 1.0_f32 };
-
-    let handle = use_html(|| HtmlSource::html(String::new()));
-    let deps = (
-      self.user.clone(),
+    let template = load_user_template(self.user_template.as_deref());
+    let html = render_user(
+      &template,
+      &self.user,
       self.is_self,
-      self.theme,
-      self.user_template.clone(),
+      &self.theme,
       self.is_right_aligned,
     );
-
-    use_side_effect_with_deps(&deps, move |deps| {
-      let (user, is_self, theme, user_template, is_right_aligned) = deps.clone();
-      let template = load_user_template(user_template.as_deref());
-      let mut handle = handle;
-      handle.replace_html(render_user(
-        &template,
-        &user,
-        is_self,
-        &theme,
-        is_right_aligned,
-      ));
-    });
 
     rect()
       .direction(Direction::Horizontal)
       .main_align(Alignment::Center)
       .cross_align(Alignment::Center)
-      .width(Size::px(width))
-      .height(Size::px(height))
-      .margin(Gaps::new_all(0.))
+      .width(width)
+      .height(height)
       .opacity(opacity)
-      .child(
-        rect()
-          .width(Size::px(self.box_size.0 as f32))
-          .height(Size::px(self.box_size.1 as f32))
-          .scale(self.ui_scale.factor())
-          .child(HtmlViewer::new(handle)),
-      )
+      .child(TemplateView {
+        html,
+        size: user_template::SIZE,
+        ui_scale: scale,
+      })
       .maybe(!self.is_self, |el| {
         el.on_secondary_down({
           let user = self.user.clone();

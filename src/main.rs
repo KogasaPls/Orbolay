@@ -320,7 +320,6 @@ fn app(startup: Startup) -> impl IntoElement {
     speaking_grace_style: config.speaking_grace_style,
     theme,
     ui_scale,
-    user_template_size: (320, 62),
     user_template: config.user_template.clone(),
   };
   let messages = config

@@ -27,7 +27,6 @@ pub struct VoiceSection {
   pub speaking_grace_style: SpeakingGraceStyle,
   pub theme: Theme,
   pub ui_scale: UiScale,
-  pub user_template_size: (u32, u32),
   pub user_template: Option<String>,
 }
 
@@ -92,7 +91,6 @@ impl Component for VoiceSection {
             is_self,
             faded,
             theme: self.theme,
-            box_size: self.user_template_size,
             user_template: self.user_template.clone(),
             is_right_aligned,
             ui_scale: scale,
