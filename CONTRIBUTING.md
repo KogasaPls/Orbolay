@@ -1,64 +1,49 @@
-# Contributing
+# Development
 
-Thank you for considering making a change! It is much appreciated :)
+Run `cargo fmt`, `cargo clippy --workspace --all-targets -- -D warnings`, and
+`cargo test --workspace` before committing; CI runs all three. The workspace enables
+`clippy::pedantic` in `Cargo.toml`, and an `#[expect]` with a `reason` is the way to accept a
+specific lint. Freya's [system libraries](https://docs.rs/freya/latest/freya/_docs/development_setup/)
+are required to build.
 
-# General Guidelines
+# Architecture
 
-1. Make an issue first! Unless it's trivial (ie. code quality), please open an issue first so your effort isn't wasted in the case of a direction change.
-2. If you are looking to add a new control or interaction between Orbolay and the client, ensure it is an available [RPC command or event](https://docs.discord.food/topics/rpc#rpc-commands).
-Even if you know you can make it work using the 3rd party plugins, to keep feature parity, I prefer project features stick to what's available to both sides, official and not.
-I am open to exceptions, but please make an issue to discuss it!
-4. Please ensure any new settings options are `#[cfg]`-gated, if needed. For example, the `XWayland` setting is gated to only show on Linux.
-5. Always run `cargo fmt` and `cargo clippy` before commits, the CI catches it too but I will likely ask you to fix them before merge.
-6. If using LLM assistance, PLEASE review the output thoroughly. The more slop PRs I get, the more trigger happy to close them I will become.
+Orbolay draws a fullscreen, transparent, always-on-top window and makes it click-through while
+the overlay is closed (with an X11 input shape, since `set_cursor_hittest` is not enough on X11).
 
-# Project Setup
+## Crates
 
-The project is extremely simple to set up for development, the only requirements are:
+| Crate | Owns |
+| --- | --- |
+| `orbolay-core` | Config file format, the bridge protocol, and `AppState` with its transitions |
+| `orbolay-transport` | The websocket server for the bridge and the config file watcher |
+| `orbolay-keys` | Key names stored in the config and matching held keys against binds |
+| `orbolay-control` | The local socket behind `--toggle-overlay`, `--mute`, and `--deafen` |
+| `orbolay-ui` | Freya components, HTML templates, and the settings window |
+| `orbolay` (root) | Startup, window setup, and the evdev keybind listener |
 
-1. The [libraries required for Freya](https://docs.rs/freya/0.4.0-rc.24/freya/_docs/development_setup/)
-2. [Rust and Cargo](https://rust-lang.org/tools/install/)
+## State
 
-Running the project is as simple as:
+`AppHandle` owns the shared `AppState`. Background threads change it in two ways:
 
-```sh
-git clone https://github.com/SpikeHD/Orbolay.git
-cd Orbolay
-cargo run
-```
+* `AppHandle::apply` runs `AppState::apply` on a `BridgeEvent`. The transition is pure and returns
+  effects, such as a timer that ends a speaking grace period or expires a notification; one timer
+  thread fires them.
+* `AppHandle::set_config` changes the config and notifies subscribers, such as the keybind listener.
 
-# High-level Architecture
+Every change signals the UI through a one-slot channel, so a burst of updates produces a single
+snapshot and render. State that only the UI uses, like whether the overlay or soundboard is open,
+lives in the root component rather than in `AppState`.
 
-Orbolay is a 2-part system. There is the UI "layer" and the transport "layer". A global `AppState` is used to bridge these two concepts together.
+## Bridge protocol
 
-## The UI Layer
+The `OrbolayBridge` client plugin connects to `ws://127.0.0.1:<port>`. Messages are JSON objects
+tagged by `cmd`: `BridgeEvent` for client to Orbolay and `BridgeCommand` for Orbolay to client, both
+in `crates/orbolay-core/src/protocol.rs`. Change both sides together; the plugin lives in its own
+repository with tests for its half of the protocol.
 
-Unlike other overlay programs like the official overlay or mangohud (which inject into the rendering pipeline of a running application), Orbolay works by running a fullscreen,
-transparent window on top of everything else. The key benefit here being that Orbolay does not depend on supporting a bunch of different graphics APIs, and can even run
-without any other program running at all! On Windows and MacOS this kinda just works, but on Linux it requires running via `xwayland` if using Wayland.
-This will likely change when `winit` supports `layer-shell`.
+## Keybinds
 
-The UI, located in `crates/orbolay-ui`, is nothing special. Freya is used to create some custom elements that we display in the window. Like something akin to React, when the
-global `AppState` changes, the UI will update along with it. Reading the code for these is probably the easiest way to get acquainted with them.
-
-## The Transport Layer
-
-Orbolay contains two transport methods, IPC and websocket. Both can be found in `crates/orbolay-transport`.
-
-### IPC
-
-IPC is used to interface with official clients, as Discord exposes a socket on the filesystem for us to query and send commands to. Orbolay pretends to be StreamKit in order to get access to most
-commands and events.
-
-IPC works by subscribing to events and sending commands. For example, we subscribe to `VOICE_STATE_UPDATE` to see the changes in a user in the voice channel (such as, if they mute themselves),
-or we can send the command `SET_VOICE_SETTINGS` with `{ mute: true }` to mute ourselves.
-
-All available commands and events can be found on [docs.discord.food](https://docs.discord.food/topics/rpc).
-
-### Websocket
-
-Websocket is used to communicate with 3rd party clients running Orbolay bridge plugins, like the [shelter plugin](https://github.com/SpikeHD/shelter-plugins#orbolay-bridge)
-or the [Vencord](https://github.com/SpikeHD/vc-orbolay-bridge)/[Equicord](https://github.com/equicord/equicord) plugins.
-
-Because we have full control over these, there is no need to subscribe to events, the plugins are just written to send them by listening to Flux events on the client. We also have access to
-more client data than RPC, since we have full control over the client via the bridge plugins.
+The listener reads `/dev/input` devices through evdev without grabbing them. While keybinds are
+disabled its thread only waits for config changes; enabling them creates an async runtime that
+reads the devices able to send the bound keys and watches for hotplugged ones.
