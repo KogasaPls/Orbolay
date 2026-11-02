@@ -6,7 +6,7 @@ use orbolay_core::{
   app_state::AppHandle,
   config::{
     Config, Corner, DisplayVoiceMembers, SpeakingGraceStyle, TEMPLATES_DIR, config_dir,
-    ensure_config_dirs, save_config,
+    ensure_config_dirs,
   },
   protocol::Notification,
 };
@@ -54,16 +54,8 @@ fn open_templates_folder() {
 
   ensure_config_dirs();
 
-  if let Err(err) = open::that(&templates_dir) {
+  if let Err(err) = open::that_detached(&templates_dir) {
     warn!("Failed to open templates folder: {err}");
-  }
-}
-
-/// Changes the shared config, which the open settings window follows, and saves it.
-pub fn apply_config(app: &AppHandle, update: impl FnOnce(&mut Config)) {
-  let updated = app.set_config(update);
-  if let Err(err) = save_config(&updated) {
-    warn!("Failed to save config.json: {err}");
   }
 }
 
@@ -184,7 +176,9 @@ impl Settings {
 
   fn updater<T: 'static>(&self, update: impl Fn(&mut Config, T) + 'static) -> EventHandler<T> {
     let app = self.app.clone();
-    EventHandler::new(move |value| apply_config(&app, |cfg| update(cfg, value)))
+    EventHandler::new(move |value| {
+      app.set_config(|cfg| update(cfg, value));
+    })
   }
 
   fn toggle(

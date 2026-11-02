@@ -313,6 +313,7 @@ fn start_background(
 
   bridge::start(app.clone(), startup.port, commands);
 
+  orbolay_ui::configurator::save_config_changes(app);
   config_watcher::start(app.clone());
 }
 

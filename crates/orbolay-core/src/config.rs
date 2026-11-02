@@ -1,6 +1,7 @@
 use std::{
   io,
   path::{Path, PathBuf},
+  sync::Mutex,
 };
 
 use serde::{Deserialize, Serialize};
@@ -351,10 +352,25 @@ pub fn config_path() -> Option<PathBuf> {
 }
 
 /// Writes the config through a temporary file so readers never see a partial file.
+/// The config Orbolay last read from or wrote to config.json. Its lock is held while the file is
+/// read or written, so a reload never runs between a save and its record.
+static ON_DISK: Mutex<Option<Config>> = Mutex::new(None);
+
+/// Writes `config` unless config.json already holds it.
+#[expect(
+  clippy::significant_drop_tightening,
+  reason = "the lock covers the file access so saves and reloads do not interleave"
+)]
 pub fn save_config(config: &Config) -> io::Result<()> {
+  let mut on_disk = ON_DISK.lock().unwrap();
+  if on_disk.as_ref() == Some(config) {
+    return Ok(());
+  }
   ensure_config_dirs();
   let path = config_path().ok_or_else(|| io::Error::other("no config directory"))?;
-  write_atomically(&path, serde_json::to_string_pretty(config)?.as_bytes())
+  write_atomically(&path, serde_json::to_string_pretty(config)?.as_bytes())?;
+  *on_disk = Some(config.clone());
+  Ok(())
 }
 
 fn write_atomically(path: &Path, contents: &[u8]) -> io::Result<()> {
@@ -363,7 +379,33 @@ fn write_atomically(path: &Path, contents: &[u8]) -> io::Result<()> {
   std::fs::rename(&tmp, path)
 }
 
+#[expect(
+  clippy::significant_drop_tightening,
+  reason = "the lock covers the file access so saves and reloads do not interleave"
+)]
 pub fn load_config() -> Result<Config, LoadError> {
+  let mut on_disk = ON_DISK.lock().unwrap();
+  let config = read_config()?;
+  *on_disk = Some(config.clone());
+  Ok(config)
+}
+
+/// Reads config.json again, returning `None` when it holds what Orbolay last read or wrote.
+#[expect(
+  clippy::significant_drop_tightening,
+  reason = "the lock covers the file access so saves and reloads do not interleave"
+)]
+pub fn reload_config() -> Result<Option<Config>, LoadError> {
+  let mut on_disk = ON_DISK.lock().unwrap();
+  let config = read_config()?;
+  if on_disk.as_ref() == Some(&config) {
+    return Ok(None);
+  }
+  *on_disk = Some(config.clone());
+  Ok(Some(config))
+}
+
+fn read_config() -> Result<Config, LoadError> {
   let path = config_path().ok_or(LoadError::Missing)?;
   let json = std::fs::read_to_string(path).map_err(|e| match e.kind() {
     io::ErrorKind::NotFound => LoadError::Missing,

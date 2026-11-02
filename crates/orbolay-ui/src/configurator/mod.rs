@@ -1,11 +1,12 @@
-use std::{cell::Cell, sync::atomic::Ordering};
+use std::{cell::Cell, sync::atomic::Ordering, time::Duration};
 
 use freya::{prelude::*, winit::window::WindowId};
+use log::warn;
 use orbolay_core::{
   app_state::{AppHandle, AppState},
-  config::{Config, load_config},
+  config::{Config, load_config, save_config},
 };
-use sections::{Section, Settings, apply_config};
+use sections::{Section, Settings};
 use sidebar::sidebar;
 
 use crate::{
@@ -23,6 +24,10 @@ mod sections;
 mod setting;
 mod sidebar;
 mod toggle;
+
+/// How long config changes must settle before they are saved, so dragging a slider or color
+/// picker writes config.json once.
+const SAVE_DELAY: Duration = Duration::from_millis(300);
 
 const WIDTH: f32 = 760.;
 const HEIGHT: f32 = 600.;
@@ -44,7 +49,9 @@ pub fn open_configurator(app: &AppHandle) {
     None => {
       CONFIGURATOR.set(Some(ConfiguratorWindow::Opening));
 
-      let window = configurator_window(app.clone(), false).with_on_close(|_, _| {
+      let closing = app.clone();
+      let window = configurator_window(app.clone(), false).with_on_close(move |_, _| {
+        save_now(&closing);
         CONFIGURATOR.set(None);
         CloseDecision::Close
       });
@@ -73,8 +80,39 @@ pub fn open_configurator_standalone() {
   let (redraw_tx, _) = flume::bounded(1);
   let state = AppState::new(load_config().unwrap_or_default());
   let (app, _commands) = AppHandle::new(state, redraw_tx);
+  save_config_changes(&app);
 
-  launch(LaunchConfig::new().with_window(configurator_window(app, true)));
+  launch(LaunchConfig::new().with_window(configurator_window(app.clone(), true)));
+  save_now(&app);
+}
+
+/// Saves config changes to config.json once they settle, off the UI thread.
+pub fn save_config_changes(app: &AppHandle) {
+  let changes = app.subscribe_config();
+  let spawned = std::thread::Builder::new()
+    .name("orbolay-config-saver".into())
+    .spawn(move || {
+      while let Ok(mut config) = changes.recv() {
+        while let Ok(newer) = changes.recv_timeout(SAVE_DELAY) {
+          config = newer;
+        }
+        save(&config);
+      }
+    });
+  if let Err(e) = spawned {
+    warn!("Could not start the config saver; settings will not be saved: {e}");
+  }
+}
+
+/// Saves a change still waiting out [`SAVE_DELAY`], for when the settings window closes.
+fn save_now(app: &AppHandle) {
+  save(&app.read(|state| state.config.clone()));
+}
+
+fn save(config: &Config) {
+  if let Err(e) = save_config(config) {
+    warn!("Failed to save config.json: {e}");
+  }
 }
 
 fn configurator_window(app: AppHandle, standalone: bool) -> WindowConfig {
@@ -117,7 +155,9 @@ fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {
   let window_id = use_hook(Platform::window_id);
 
   // `close_window` skips the `with_on_close` hook, so forget the window here.
+  let closing = app.clone();
   let close = EventHandler::new(move |()| {
+    save_now(&closing);
     CONFIGURATOR.set(None);
     Platform::get().close_window(window_id);
   });
@@ -125,7 +165,9 @@ fn configurator(app: AppHandle, standalone: bool) -> impl IntoElement {
 
   let on_reset = EventHandler::new({
     let app = app.clone();
-    move |()| apply_config(&app, |cfg| *cfg = Config::default())
+    move |()| {
+      app.set_config(|cfg| *cfg = Config::default());
+    }
   });
 
   let current = section();

@@ -1,14 +1,17 @@
-use std::sync::mpsc;
+use std::{sync::mpsc, time::Duration};
 
 use log::{error, info, warn};
 use notify::{Event, Result, Watcher};
 use orbolay_core::{
   app_state::AppHandle,
-  config::{CONFIG_FILE, config_dir, load_config},
+  config::{CONFIG_FILE, config_dir, reload_config},
 };
 
-/// Applies edits made to config.json outside Orbolay. Saves from the settings window reload as
-/// no-ops because `set_config` ignores unchanged configs.
+/// How long config.json must stay quiet before it is reloaded, so one save reloads once.
+const RELOAD_DELAY: Duration = Duration::from_millis(100);
+
+/// Applies edits made to config.json outside Orbolay. Orbolay's own saves are skipped because
+/// `reload_config` recognizes what it last wrote.
 pub fn start(app: AppHandle) {
   info!("Starting config file notification thread");
   std::thread::spawn(move || {
@@ -41,7 +44,7 @@ pub fn start(app: AppHandle) {
       return;
     }
 
-    for event in rx {
+    while let Ok(event) = rx.recv() {
       let event = match event {
         Ok(event) => event,
         Err(e) => {
@@ -57,10 +60,13 @@ pub fn start(app: AppHandle) {
         continue;
       }
 
-      match load_config() {
-        Ok(new_config) => {
+      while rx.recv_timeout(RELOAD_DELAY).is_ok() {}
+
+      match reload_config() {
+        Ok(Some(new_config)) => {
           app.set_config(|config| *config = new_config);
         }
+        Ok(None) => {}
         Err(e) => warn!("Failed to reload config: {e}"),
       }
     }
