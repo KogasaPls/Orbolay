@@ -37,11 +37,7 @@ pub fn select_monitor<'a>(
 }
 
 pub fn window_size_for_display(monitor: &MonitorHandle) -> PhysicalSize<u32> {
-  let size = monitor.size();
-
-  // https://discourse.glfw.org/t/black-screen-when-setting-window-to-transparent-and-size-to-1920x1080/2585/5
-  // We do -1 specifically on the height to fix the Windows hidden taskbar thing
-  PhysicalSize::new(size.width + 1, size.height.saturating_sub(1))
+  monitor.size()
 }
 
 pub fn update_monitor() {

@@ -19,7 +19,6 @@ mod color_picker;
 mod commit;
 mod dropdown;
 mod input;
-#[cfg(not(target_os = "macos"))]
 mod keybind;
 mod sections;
 mod setting;

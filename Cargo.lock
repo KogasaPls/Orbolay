@@ -4115,7 +4115,6 @@ dependencies = [
  "rdev",
  "serde_json",
  "sysinfo",
- "windows",
  "winit",
  "x11rb",
 ]

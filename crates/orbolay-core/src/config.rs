@@ -95,7 +95,6 @@ fn default_true() -> bool {
 #[serde(rename_all = "camelCase")]
 pub struct Config {
   #[serde(default = "default_overlay_keybind")]
-  #[cfg(not(target_os = "macos"))]
   pub overlay_keybind: Option<Vec<String>>,
   #[serde(default)]
   pub display_idx: Option<usize>,
@@ -158,7 +157,6 @@ impl Config {
 impl Default for Config {
   fn default() -> Self {
     Self {
-      #[cfg(not(target_os = "macos"))]
       overlay_keybind: default_overlay_keybind(),
       display_idx: None,
       display_name: None,

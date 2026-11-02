@@ -1,7 +1,3 @@
-#![cfg_attr(
-  all(not(debug_assertions), target_os = "windows"),
-  windows_subsystem = "windows"
-)]
 #![allow(clippy::borrow_interior_mutable_const)]
 #![allow(clippy::declare_interior_mutable_const)]
 
@@ -26,7 +22,13 @@ use orbolay_ui::{
   open_configurator, open_configurator_standalone, populate_monitor_cache,
   util::{scale::UiScale, theme},
 };
-use winit::window::WindowLevel;
+use winit::{
+  platform::{
+    wayland::WindowAttributesExtWayland,
+    x11::{WindowAttributesExtX11, WindowType},
+  },
+  window::WindowLevel,
+};
 
 use crate::{
   display::{select_monitor, update_monitor, window_size_for_display},
@@ -35,7 +37,6 @@ use crate::{
 };
 
 mod display;
-#[cfg(not(target_os = "macos"))]
 mod keys;
 mod manager;
 mod notifications;
@@ -160,14 +161,10 @@ fn main() {
     std::process::exit(0);
   }
 
-  #[cfg(target_os = "linux")]
-  {
-    let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
-    if session_type.to_lowercase() == "wayland" {
-      warn!(
-        "You are using Wayland. Orbolay will probably not work correctly unless running with XWayland."
-      );
-    }
+  if !config.xwayland && wayland_display.as_deref().is_ok_and(|d| !d.is_empty()) {
+    warn!(
+      "XWayland is disabled; the overlay may not stay on top or pass clicks through under Wayland"
+    );
   }
 
   if !args.target.is_empty() {
@@ -206,25 +203,10 @@ fn main() {
                 .with_position(monitor.position());
             }
 
-            #[cfg(target_os = "windows")]
-            {
-              use winit::platform::windows::WindowAttributesExtWindows;
-
-              w = w.with_skip_taskbar(true);
-            }
-
-            #[cfg(target_os = "linux")]
-            {
-              use winit::platform::wayland::WindowAttributesExtWayland;
-              use winit::platform::x11::{WindowAttributesExtX11, WindowType};
-
-              w = WindowAttributesExtX11::with_name(w, "orbolay", "orbolay")
-                .with_x11_window_type(vec![WindowType::Utility])
-                .with_override_redirect(true);
-              w = WindowAttributesExtWayland::with_name(w, "orbolay", "orbolay");
-            }
-
-            w
+            w = WindowAttributesExtX11::with_name(w, "orbolay", "orbolay")
+              .with_x11_window_type(vec![WindowType::Utility])
+              .with_override_redirect(true);
+            WindowAttributesExtWayland::with_name(w, "orbolay", "orbolay")
           }),
       ),
   );
@@ -258,7 +240,6 @@ fn app() -> impl IntoElement {
       window::set_clickable(false);
     }
 
-    #[cfg(not(target_os = "macos"))]
     keys::watch_keybinds(shared.clone(), action_tx.clone());
 
     let ctrl_app = app.clone();

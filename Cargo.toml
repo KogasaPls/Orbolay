@@ -12,7 +12,7 @@ freya = { git = "https://github.com/marc2332/freya.git", branch = "main", featur
 
 gumdrop = "0.8.1"
 interprocess = "2.4.2"
-native-dialog = { version = "0.9.0", features = ["windows_dpi_awareness", "windows_visual_styles"] }
+native-dialog = "0.9.0"
 notify = "8.2.0"
 open = "5.3.5"
 rdev = { version = "0.5", features = ["unstable_grab", "serialize"] }
@@ -25,7 +25,6 @@ ureq = "3.0.12"
 url = "2.5.8"
 winit = { version = "0.30", features = ["wayland", "x11", "rwh_06"] }
 x11rb = { version = "0.13", features = ["as-raw-xcb-connection", "shape"] }
-windows = "0.62.2"
 
 [workspace.lints.rust]
 rust_2018_idioms = { level = "warn", priority = -1 }
@@ -58,7 +57,7 @@ name = "orbolay"
 version = "4.3.0"
 edition = "2024"
 rust-version = "1.95"
-description = "Quick, small, native, multi-platform Discord overlay alternative"
+description = "Quick, small, native Discord overlay for modded Linux clients"
 
 [lints]
 workspace = true
@@ -69,11 +68,6 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "abort"
-
-[package.metadata.bundle]
-name = "Orbolay"
-identifier = "dev.spikehd.orbolay"
-icon = ["assets/icons/orbolay.png", "assets/icons/orbolay.ico", "assets/icons/orbolay.icns"]
 
 [dependencies]
 chrono = { workspace = true }
@@ -89,13 +83,6 @@ orbolay-ui = { path = "crates/orbolay-ui" }
 orbolay-control = { path = "crates/orbolay-control" }
 serde_json = { workspace = true }
 sysinfo = { workspace = true }
-winit = { workspace = true }
-
-[target.'cfg(target_os = "linux")'.dependencies]
-x11rb = { workspace = true }
-
-[target.'cfg(not(target_os = "macos"))'.dependencies]
 rdev = { workspace = true }
-
-[target.'cfg(target_os = "windows")'.dependencies]
-windows = { workspace = true }
+winit = { workspace = true }
+x11rb = { workspace = true }

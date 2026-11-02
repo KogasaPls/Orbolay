@@ -14,7 +14,6 @@ pub fn set_clickable(clickable: bool) {
     let _ = w.set_cursor_hittest(clickable);
 
     // On X11/KDE, set_cursor_hittest is not enough for click-through
-    #[cfg(target_os = "linux")]
     {
       use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
       use x11rb::{

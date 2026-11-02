@@ -11,10 +11,6 @@ pub fn populate_monitor_cache(primary: Option<&MonitorHandle>, monitors: &[Monit
       let name = m.name();
       MonitorInfo {
         name: name.clone().unwrap_or_else(|| format!("Display {idx}")),
-        // Winit's macOS names identify a model, not an individual monitor.
-        #[cfg(target_os = "macos")]
-        native_name: None,
-        #[cfg(not(target_os = "macos"))]
         native_name: name,
         is_primary: primary.map_or(idx == 0, |p| p == m),
         width: size.width,

@@ -10,16 +10,12 @@ pub enum KeyEvent {
   ToggleOverlay,
 }
 
-#[cfg(not(target_os = "macos"))]
 use rdev::Key;
 
-#[cfg(not(target_os = "macos"))]
 pub mod keybind;
 
-#[cfg(not(target_os = "macos"))]
 pub use keybind::{KeyState, Keybind, process};
 
-#[cfg(not(target_os = "macos"))]
 pub fn string_to_key(string: impl AsRef<str>) -> Option<Key> {
   let s = string.as_ref();
   serde_json::from_str::<Key>(s)
@@ -27,7 +23,6 @@ pub fn string_to_key(string: impl AsRef<str>) -> Option<Key> {
     .ok()
 }
 
-#[cfg(not(target_os = "macos"))]
 pub fn key_to_string(key: &Key) -> String {
   serde_json::to_string(key)
     .unwrap_or_default()
@@ -35,17 +30,14 @@ pub fn key_to_string(key: &Key) -> String {
     .to_owned()
 }
 
-#[cfg(not(target_os = "macos"))]
 pub fn keys_to_strings(keys: &[Key]) -> Vec<String> {
   keys.iter().map(key_to_string).collect()
 }
 
-#[cfg(not(target_os = "macos"))]
 pub fn strings_to_keys(strings: &[impl AsRef<str>]) -> Vec<Key> {
   strings.iter().filter_map(string_to_key).collect()
 }
 
-#[cfg(not(target_os = "macos"))]
 pub fn default_keybinds() -> Vec<Keybind> {
   vec![Keybind::new(
     strings_to_keys(&DEFAULT_OVERLAY_TOGGLE.get()),

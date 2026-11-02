@@ -16,11 +16,9 @@ use crate::util::{
   notification_template::list_notification_templates, user_template::list_user_templates,
 };
 
-#[cfg(not(target_os = "macos"))]
 use orbolay_keys::{DEFAULT_OVERLAY_TOGGLE, keys_to_strings, strings_to_keys};
 
 use super::buttons::wide_button;
-#[cfg(not(target_os = "macos"))]
 use super::keybind::KeybindControl;
 use super::{
   color_picker::ColorPickerControl, dropdown::DropdownControl, input::InputControl,
@@ -321,7 +319,6 @@ impl Settings {
     })
   }
 
-  #[cfg(not(target_os = "macos"))]
   fn keybind_group(&self) -> Element {
     let config = &self.config;
     let enabled = config.is_keybind_enabled.unwrap_or(true);
@@ -372,7 +369,6 @@ impl Settings {
       .unwrap_or(0);
 
     Vec::from([
-      #[cfg(not(target_os = "macos"))]
       self.keybind_group(),
       group(
         "Overlay",
@@ -593,15 +589,13 @@ impl Settings {
   fn connection(&self) -> Vec<Element> {
     let config = &self.config;
 
-    vec![card([
-      self.number(
-        "Websocket Port",
-        Some("Port the websocket server listens on. Requires Restart."),
-        config.port.unwrap_or(6888),
-        false,
-        |cfg, n: u16| cfg.port = Some(n),
-      ),
-    ])]
+    vec![card([self.number(
+      "Websocket Port",
+      Some("Port the websocket server listens on. Requires Restart."),
+      config.port.unwrap_or(6888),
+      false,
+      |cfg, n: u16| cfg.port = Some(n),
+    )])]
   }
 
   fn advanced(&self) -> Vec<Element> {
@@ -614,7 +608,6 @@ impl Settings {
         config.software_rendering.unwrap_or(false),
         |cfg, value| cfg.software_rendering = Some(value),
       ),
-      #[cfg(target_os = "linux")]
       self.toggle(
         "Run with XWayland",
         "Create the window under XWayland. Requires restart.",
