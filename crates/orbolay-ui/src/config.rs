@@ -3,7 +3,7 @@ use std::{fmt::Display, str::FromStr};
 use freya::prelude::{Alignment, Gaps, Position};
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub enum AxisAlignment {
   Start,
   Center,
@@ -13,9 +13,9 @@ pub enum AxisAlignment {
 impl Display for AxisAlignment {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      AxisAlignment::Start => write!(f, "start"),
-      AxisAlignment::Center => write!(f, "center"),
-      AxisAlignment::End => write!(f, "end"),
+      Self::Start => write!(f, "start"),
+      Self::Center => write!(f, "center"),
+      Self::End => write!(f, "end"),
     }
   }
 }
@@ -23,14 +23,14 @@ impl Display for AxisAlignment {
 impl AxisAlignment {
   pub fn to_freya(&self) -> Alignment {
     match self {
-      AxisAlignment::Start => Alignment::Start,
-      AxisAlignment::Center => Alignment::Center,
-      AxisAlignment::End => Alignment::End,
+      Self::Start => Alignment::Start,
+      Self::Center => Alignment::Center,
+      Self::End => Alignment::End,
     }
   }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct CornerAlignment {
   pub x: AxisAlignment,
   pub y: AxisAlignment,
@@ -44,39 +44,35 @@ impl FromStr for CornerAlignment {
 
   fn from_str(s: &str) -> Result<Self, Self::Err> {
     Ok(match s.to_ascii_lowercase().as_str() {
-      "topleft" => CornerAlignment {
-        x: AxisAlignment::Start,
-        y: AxisAlignment::Start,
-      },
-      "topright" => CornerAlignment {
+      "topright" => Self {
         x: AxisAlignment::End,
         y: AxisAlignment::Start,
       },
-      "bottomleft" => CornerAlignment {
+      "bottomleft" => Self {
         x: AxisAlignment::Start,
         y: AxisAlignment::End,
       },
-      "bottomright" => CornerAlignment {
+      "bottomright" => Self {
         x: AxisAlignment::End,
         y: AxisAlignment::End,
       },
-      "topcenter" => CornerAlignment {
+      "topcenter" => Self {
         x: AxisAlignment::Center,
         y: AxisAlignment::Start,
       },
-      "bottomcenter" => CornerAlignment {
+      "bottomcenter" => Self {
         x: AxisAlignment::Center,
         y: AxisAlignment::End,
       },
-      "centerleft" => CornerAlignment {
+      "centerleft" => Self {
         x: AxisAlignment::Start,
         y: AxisAlignment::Center,
       },
-      "centerright" => CornerAlignment {
+      "centerright" => Self {
         x: AxisAlignment::End,
         y: AxisAlignment::Center,
       },
-      _ => CornerAlignment {
+      _ => Self {
         x: AxisAlignment::Start,
         y: AxisAlignment::Start,
       },
@@ -116,13 +112,13 @@ impl CornerAlignment {
       AxisAlignment::Start => position = position.left(0.),
       AxisAlignment::Center => {}
       AxisAlignment::End => position = position.right(0.),
-    };
+    }
 
     match self.y {
       AxisAlignment::Start => position = position.top(0.),
       AxisAlignment::Center => {}
       AxisAlignment::End => position = position.bottom(0.),
-    };
+    }
 
     position
   }

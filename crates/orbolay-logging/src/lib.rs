@@ -1,9 +1,9 @@
-use std::fmt::Display;
 use std::io::Write;
 
 use chrono::Local;
 use colored::Colorize;
 
+#[derive(Debug, Clone, Copy)]
 pub enum LogKind {
   Info,
   Success,
@@ -11,13 +11,12 @@ pub enum LogKind {
   Error,
 }
 
-pub fn log_impl(s: impl AsRef<str> + Display, kind: Option<LogKind>) {
+pub fn log_impl(s: &str, kind: Option<LogKind>) {
   let status = match kind {
-    Some(LogKind::Info) => "INFO".blue(),
+    Some(LogKind::Info) | None => "INFO".blue(),
     Some(LogKind::Success) => "DONE".green(),
     Some(LogKind::Warn) => "WARN".yellow(),
     Some(LogKind::Error) => "FAIL".red(),
-    None => "INFO".blue(),
   };
 
   let _ = writeln!(
@@ -32,27 +31,27 @@ pub fn log_impl(s: impl AsRef<str> + Display, kind: Option<LogKind>) {
 #[macro_export]
 macro_rules! log {
   ($($arg:tt)*) => {
-    $crate::log_impl(format!($($arg)*), Some($crate::LogKind::Info))
+    $crate::log_impl(&format!($($arg)*), Some($crate::LogKind::Info))
   };
 }
 
 #[macro_export]
 macro_rules! success {
   ($($arg:tt)*) => {
-    $crate::log_impl(format!($($arg)*), Some($crate::LogKind::Success))
+    $crate::log_impl(&format!($($arg)*), Some($crate::LogKind::Success))
   };
 }
 
 #[macro_export]
 macro_rules! warn {
   ($($arg:tt)*) => {
-    $crate::log_impl(format!($($arg)*), Some($crate::LogKind::Warn))
+    $crate::log_impl(&format!($($arg)*), Some($crate::LogKind::Warn))
   };
 }
 
 #[macro_export]
 macro_rules! error {
   ($($arg:tt)*) => {
-    $crate::log_impl(format!($($arg)*), Some($crate::LogKind::Error))
+    $crate::log_impl(&format!($($arg)*), Some($crate::LogKind::Error))
   };
 }

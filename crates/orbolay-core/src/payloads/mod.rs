@@ -7,7 +7,7 @@ fn default_timeout_secs() -> i64 {
   5
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NotificationKind {
   Primary,
   Secondary,
@@ -66,6 +66,7 @@ impl std::fmt::Debug for Notification {
       .field("channel_id", &self.channel_id)
       .field("message_id", &self.message_id)
       .field("timestamp", &self.timestamp)
+      .field("timeout_secs", &self.timeout_secs)
       .field("url", &self.url)
       .field("actions", &self.actions.is_some())
       .finish()

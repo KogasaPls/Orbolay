@@ -74,8 +74,11 @@ impl Component for MessageRow {
           PressEventData::Touch(t) => (t.element_location.x, t.element_location.y),
           PressEventData::Keyboard(_) | PressEventData::Accessibility(_) => return,
         };
-        let local_x = (mouse_x as f32) / ui_scale;
-        let local_y = (mouse_y as f32) / ui_scale;
+        #[expect(
+          clippy::cast_possible_truncation,
+          reason = "pointer coordinates fit in f32"
+        )]
+        let (local_x, local_y) = (mouse_x as f32 / ui_scale, mouse_y as f32 / ui_scale);
         let hits = handle.elements_at(local_x, local_y);
 
         for hit in hits {
@@ -105,7 +108,7 @@ impl Component for MessageRow {
             "channel_id": message.channel_id,
             "message_id": message.message_id,
           }),
-        })
+        });
       })
   }
 }

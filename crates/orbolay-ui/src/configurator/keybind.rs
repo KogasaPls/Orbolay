@@ -3,7 +3,7 @@ use std::sync::{
   atomic::{AtomicBool, Ordering},
 };
 
-use freya::animation::*;
+use freya::animation::{AnimColor, OnFinish, use_animation};
 use freya::prelude::*;
 use rdev::Key;
 
@@ -118,7 +118,7 @@ impl Component for KeybindControl {
       if pressing.read().is_empty() {
         let keys = candidate.read().clone();
         if !keys.is_empty() {
-          *recorded.write() = keys.clone();
+          recorded.write().clone_from(&keys);
           *candidate.write() = vec![];
           on_change.call(keys);
         }

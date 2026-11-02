@@ -7,3 +7,6 @@ rust-version = "1.95"
 [dependencies]
 chrono = { workspace = true }
 colored = { workspace = true }
+
+[lints]
+workspace = true

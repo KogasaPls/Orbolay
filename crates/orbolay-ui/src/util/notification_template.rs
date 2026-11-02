@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::{
   fs,
   path::{Path, PathBuf},
@@ -192,22 +193,22 @@ fn icon_url(icon: &str) -> String {
 
 fn actions_html(notification: &Notification) -> String {
   match &notification.actions {
-    Some(actions) => actions
-      .iter()
-      .enumerate()
-      .map(|(index, action)| {
+    Some(actions) => {
+      let mut html = String::new();
+      for (index, action) in actions.iter().enumerate() {
         let kind_class = if action.kind == NotificationKind::Secondary {
           "action secondary"
         } else {
           "action"
         };
-        format!(
+        let _ = write!(
+          html,
           "<button class=\"{kind_class}\" {ACTION_ATTR}=\"{index}\">{}</button>",
           escape_html(&action.label)
-        )
-      })
-      .collect::<Vec<_>>()
-      .join(""),
+        );
+      }
+      html
+    }
     None => String::new(),
   }
 }

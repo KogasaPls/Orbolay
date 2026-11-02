@@ -24,7 +24,7 @@ pub fn watch_keybinds(shared: SharedAppState, keybind_tx: flume::Sender<KeyEvent
   {
     let enabled = enabled.clone();
     let keybinds = keybinds.clone();
-    let shared = shared.clone();
+    let shared = shared;
     thread::spawn(move || {
       loop {
         let (is_enabled, overlay_keybind) = {
@@ -37,9 +37,9 @@ pub fn watch_keybinds(shared: SharedAppState, keybind_tx: flume::Sender<KeyEvent
 
         enabled.store(is_enabled, Ordering::Relaxed);
 
-        let overlay_keys = strings_to_keys(
-          overlay_keybind
-            .unwrap_or_else(|| DEFAULT_OVERLAY_TOGGLE.get().map(String::from).to_vec()),
+        let overlay_keys = overlay_keybind.as_deref().map_or_else(
+          || strings_to_keys(&DEFAULT_OVERLAY_TOGGLE.get()),
+          strings_to_keys,
         );
 
         {
@@ -49,7 +49,7 @@ pub fn watch_keybinds(shared: SharedAppState, keybind_tx: flume::Sender<KeyEvent
             .find(|kb| matches!(kb.event, KeyEvent::ToggleOverlay))
             && kb.keys != overlay_keys
           {
-            kb.keys = overlay_keys.clone();
+            kb.keys.clone_from(&overlay_keys);
             kb.reset();
           }
         }

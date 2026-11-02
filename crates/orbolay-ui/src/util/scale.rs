@@ -20,6 +20,10 @@ impl UiScale {
     value * self.0
   }
 
+  #[expect(
+    clippy::cast_possible_truncation,
+    reason = "UI pixel sizes are far below the f32 and i32 limits"
+  )]
   pub fn int(self, value: i32) -> i32 {
     (value as f32 * self.0).round() as i32
   }
@@ -34,12 +38,13 @@ pub fn scale_i32(value: i32, scale: f32) -> i32 {
 }
 
 pub trait GapsScaleExt {
+  #[must_use]
   fn scaled(self, scale: f32) -> Self;
 }
 
 impl GapsScaleExt for Gaps {
   fn scaled(self, scale: f32) -> Self {
-    Gaps::new(
+    Self::new(
       self.top() * scale,
       self.right() * scale,
       self.bottom() * scale,

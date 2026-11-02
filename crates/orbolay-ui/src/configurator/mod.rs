@@ -53,7 +53,7 @@ pub fn open_configurator(app: &AppHandle) {
       spawn_global(async move {
         let id = Platform::get().launch_window(window).await;
 
-        if let Some(ConfiguratorWindow::Opening) = CONFIGURATOR.get() {
+        if matches!(CONFIGURATOR.get(), Some(ConfiguratorWindow::Opening)) {
           CONFIGURATOR.set(Some(ConfiguratorWindow::Open(id)));
           show_window(id);
         }
@@ -86,8 +86,8 @@ pub fn open_configurator_standalone() {
 fn configurator_window(app: AppHandle, standalone: bool) -> WindowConfig {
   WindowConfig::new(move || configurator(app.clone(), standalone))
     .with_background(GRAY)
-    .with_size(WIDTH as f64, HEIGHT as f64)
-    .with_min_size(WIDTH as f64, 400.)
+    .with_size(f64::from(WIDTH), f64::from(HEIGHT))
+    .with_min_size(f64::from(WIDTH), 400.)
     .with_title("Orbolay Configurator")
 }
 

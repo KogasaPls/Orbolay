@@ -68,7 +68,7 @@ impl Component for UserContextMenuItem {
                 label()
                   .font_size(scale.px(12.))
                   .color(self.theme.text_color)
-                  .text(format!("{}%", slider_value.read().round() as u64 * 2)),
+                  .text(format!("{:.0}%", slider_value.read().round() * 2.0)),
               ),
           )
           .child(

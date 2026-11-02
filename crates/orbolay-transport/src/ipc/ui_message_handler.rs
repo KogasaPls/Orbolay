@@ -12,7 +12,7 @@ use orbolay_logging::log;
 pub fn handle_ui_message(
   stream: &SharedStream,
   msg: &BridgeMessage,
-  app: AppHandle,
+  app: &AppHandle,
 ) -> Result<(), Box<dyn std::error::Error>> {
   log!("Handling UI message: {:?}", msg);
 
@@ -23,8 +23,7 @@ pub fn handle_ui_message(
           .voice_users
           .iter()
           .find(|user| user.id == state.user_id)
-          .map(|user| user.voice_state == UserVoiceState::Muted)
-          .unwrap_or(false)
+          .is_some_and(|user| user.voice_state == UserVoiceState::Muted)
       });
       set_muted(stream, !muted)?;
       return Ok(());
@@ -35,8 +34,7 @@ pub fn handle_ui_message(
           .voice_users
           .iter()
           .find(|user| user.id == state.user_id)
-          .map(|user| user.voice_state == UserVoiceState::Deafened)
-          .unwrap_or(false)
+          .is_some_and(|user| user.voice_state == UserVoiceState::Deafened)
       });
       set_deafened(stream, !deafened)?;
       return Ok(());
@@ -94,7 +92,7 @@ pub fn handle_ui_message(
         .data
         .get("source_guild_id")
         .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
+        .map(ToString::to_string);
       play_soundboard_sound(stream, &sound_id, source_guild_id.as_deref())?;
       return Ok(());
     }
@@ -108,7 +106,7 @@ pub fn handle_ui_message(
       let volume = msg
         .data
         .get("volume")
-        .and_then(|v| v.as_f64())
+        .and_then(serde_json::Value::as_f64)
         .unwrap_or(100.);
       set_user_volume(stream, &user_id, volume)?;
     }

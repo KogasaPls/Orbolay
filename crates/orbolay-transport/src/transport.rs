@@ -17,13 +17,13 @@ pub fn create_transport_thread(
     match transport_mode {
       TransportMode::Websocket => {
         app.update(|state| state.transport_mode = TransportMode::Websocket);
-        if let Err(e) = websocket::create_websocket(ws_port, app.clone(), transport_recv) {
+        if let Err(e) = websocket::create_websocket(ws_port, &app, &transport_recv) {
           error!("Websocket server failed on port {}: {}", ws_port, e);
         }
       }
       TransportMode::Ipc => {
         app.update(|state| state.transport_mode = TransportMode::Ipc);
-        if let Err(e) = ipc::create_ipc_connection(app.clone(), transport_recv) {
+        if let Err(e) = ipc::create_ipc_connection(&app, &transport_recv) {
           error!("IPC connection failed: {}", e);
         }
       }

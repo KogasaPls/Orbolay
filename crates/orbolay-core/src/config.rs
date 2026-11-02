@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::dirs::ensure_config_dirs;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum TransportMode {
   #[default]
@@ -12,7 +12,7 @@ pub enum TransportMode {
   Websocket,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum DisplayVoiceMembers {
   Always,
@@ -21,7 +21,7 @@ pub enum DisplayVoiceMembers {
   WhenSpeaking,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum SpeakingGraceStyle {
   #[default]
@@ -32,8 +32,8 @@ pub enum SpeakingGraceStyle {
 impl Display for TransportMode {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      TransportMode::Ipc => write!(f, "ipc"),
-      TransportMode::Websocket => write!(f, "websocket"),
+      Self::Ipc => write!(f, "ipc"),
+      Self::Websocket => write!(f, "websocket"),
     }
   }
 }
@@ -41,9 +41,8 @@ impl Display for TransportMode {
 impl From<String> for TransportMode {
   fn from(value: String) -> Self {
     match value.as_ref() {
-      "ipc" => TransportMode::Ipc,
-      "websocket" => TransportMode::Websocket,
-      _ => TransportMode::Ipc,
+      "websocket" => Self::Websocket,
+      _ => Self::Ipc,
     }
   }
 }
@@ -51,9 +50,9 @@ impl From<String> for TransportMode {
 impl Display for DisplayVoiceMembers {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      DisplayVoiceMembers::Always => write!(f, "always"),
-      DisplayVoiceMembers::AlwaysSemiTransparent => write!(f, "always (semi-transparent)"),
-      DisplayVoiceMembers::WhenSpeaking => write!(f, "only when speaking"),
+      Self::Always => write!(f, "always"),
+      Self::AlwaysSemiTransparent => write!(f, "always (semi-transparent)"),
+      Self::WhenSpeaking => write!(f, "only when speaking"),
     }
   }
 }
@@ -61,10 +60,9 @@ impl Display for DisplayVoiceMembers {
 impl From<String> for DisplayVoiceMembers {
   fn from(value: String) -> Self {
     match value.as_ref() {
-      "always" => DisplayVoiceMembers::Always,
-      "always (semi-transparent)" => DisplayVoiceMembers::AlwaysSemiTransparent,
-      "only when speaking" => DisplayVoiceMembers::WhenSpeaking,
-      _ => DisplayVoiceMembers::Always,
+      "always (semi-transparent)" => Self::AlwaysSemiTransparent,
+      "only when speaking" => Self::WhenSpeaking,
+      _ => Self::Always,
     }
   }
 }
@@ -72,8 +70,8 @@ impl From<String> for DisplayVoiceMembers {
 impl Display for SpeakingGraceStyle {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      SpeakingGraceStyle::AsSpeaking => write!(f, "as speaking"),
-      SpeakingGraceStyle::Dimmed => write!(f, "dimmed"),
+      Self::AsSpeaking => write!(f, "as speaking"),
+      Self::Dimmed => write!(f, "dimmed"),
     }
   }
 }
@@ -81,12 +79,16 @@ impl Display for SpeakingGraceStyle {
 impl From<String> for SpeakingGraceStyle {
   fn from(value: String) -> Self {
     match value.as_ref() {
-      "dimmed" => SpeakingGraceStyle::Dimmed,
-      _ => SpeakingGraceStyle::AsSpeaking,
+      "dimmed" => Self::Dimmed,
+      _ => Self::AsSpeaking,
     }
   }
 }
 
+#[expect(
+  clippy::unnecessary_wraps,
+  reason = "serde default for an optional field"
+)]
 fn default_overlay_keybind() -> Option<Vec<String>> {
   Some(vec!["ControlLeft".into(), "BackQuote".into()])
 }

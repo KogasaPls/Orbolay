@@ -50,7 +50,7 @@ pub fn populate_monitor_cache(primary: Option<&MonitorHandle>, monitors: &[Monit
       let size = m.size();
       MonitorInfo {
         name: m.name().unwrap_or_else(|| format!("Display {idx}")),
-        is_primary: primary.map(|p| p == m).unwrap_or(idx == 0),
+        is_primary: primary.map_or(idx == 0, |p| p == m),
         width: size.width,
         height: size.height,
       }

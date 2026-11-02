@@ -55,7 +55,7 @@ fn ui_scale_label(scale: f32) -> String {
 }
 
 fn to_options(values: &[&str]) -> Vec<String> {
-  values.iter().map(|s| s.to_string()).collect()
+  values.iter().map(ToString::to_string).collect()
 }
 
 fn option_index(options: &[&str], value: &str) -> usize {
@@ -165,7 +165,7 @@ fn row(
   .into()
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Section {
   General,
   Voice,
@@ -176,34 +176,34 @@ pub enum Section {
 }
 
 impl Section {
-  pub const ALL: [Section; 6] = [
-    Section::General,
-    Section::Voice,
-    Section::Notifications,
-    Section::Appearance,
-    Section::Connection,
-    Section::Advanced,
+  pub const ALL: [Self; 6] = [
+    Self::General,
+    Self::Voice,
+    Self::Notifications,
+    Self::Appearance,
+    Self::Connection,
+    Self::Advanced,
   ];
 
-  pub fn title(&self) -> &'static str {
+  pub fn title(self) -> &'static str {
     match self {
-      Section::General => "General",
-      Section::Voice => "Voice",
-      Section::Notifications => "Notifications",
-      Section::Appearance => "Appearance",
-      Section::Connection => "Connection",
-      Section::Advanced => "Advanced",
+      Self::General => "General",
+      Self::Voice => "Voice",
+      Self::Notifications => "Notifications",
+      Self::Appearance => "Appearance",
+      Self::Connection => "Connection",
+      Self::Advanced => "Advanced",
     }
   }
 
-  pub fn description(&self) -> &'static str {
+  pub fn description(self) -> &'static str {
     match self {
-      Section::General => "How the overlay opens and where it appears",
-      Section::Voice => "Who is shown in the voice list, and where",
-      Section::Notifications => "Popups for incoming messages and calls",
-      Section::Appearance => "Colors, shapes and templates",
-      Section::Connection => "How Orbolay connects to Discord",
-      Section::Advanced => "Rendering options",
+      Self::General => "How the overlay opens and where it appears",
+      Self::Voice => "Who is shown in the voice list, and where",
+      Self::Notifications => "Popups for incoming messages and calls",
+      Self::Appearance => "Colors, shapes and templates",
+      Self::Connection => "How Orbolay connects to Discord",
+      Self::Advanced => "Rendering options",
     }
   }
 }
@@ -267,7 +267,7 @@ impl Settings {
     )
   }
 
-  fn number<T: FromStr + ToString + 'static>(
+  fn number<T: FromStr + ToString + Copy + 'static>(
     &self,
     name: &str,
     description: Option<&str>,
@@ -346,11 +346,9 @@ impl Settings {
   fn keybind_group(&self) -> Element {
     let config = &self.config;
     let enabled = config.is_keybind_enabled.unwrap_or(true);
-    let keys = strings_to_keys(
-      config
-        .overlay_keybind
-        .clone()
-        .unwrap_or_else(|| DEFAULT_OVERLAY_TOGGLE.get().map(String::from).to_vec()),
+    let keys = config.overlay_keybind.as_deref().map_or_else(
+      || strings_to_keys(&DEFAULT_OVERLAY_TOGGLE.get()),
+      strings_to_keys,
     );
 
     group(
@@ -367,7 +365,7 @@ impl Settings {
           Some("The keybind used to open the overlay"),
           KeybindControl::new(
             keys,
-            self.updater(|cfg, keys| cfg.overlay_keybind = Some(keys_to_strings(keys))),
+            self.updater(|cfg, keys: Vec<_>| cfg.overlay_keybind = Some(keys_to_strings(&keys))),
             enabled,
           ),
           !enabled,

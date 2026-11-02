@@ -10,3 +10,6 @@ interprocess = { workspace = true }
 orbolay-logging = { path = "../orbolay-logging" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+[lints]
+workspace = true

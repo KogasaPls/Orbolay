@@ -30,7 +30,7 @@ pub fn maybe_notify_update(app: AppHandle) {
       if latest_version != current_version {
         app.notify(Notification {
           title: "Update Available!".into(),
-          body: format!("Orbolay {} is now available!", latest_version),
+          body: format!("Orbolay {latest_version} is now available!"),
           icon: "https://avatars.githubusercontent.com/u/25207995?v=4".to_string(),
           url: Some(release_url.to_string()),
           ..Default::default()

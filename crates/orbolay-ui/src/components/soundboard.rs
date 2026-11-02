@@ -38,7 +38,7 @@ impl Component for SoundButton {
     let source_guild_id = self.sound.guild_id.clone();
     let available = self.sound.available;
     let text = match &self.sound.emoji_name {
-      Some(e) => e.to_string(),
+      Some(e) => e.clone(),
       None => "?".into(),
     };
     let name = &self.sound.name;

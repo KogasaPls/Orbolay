@@ -18,6 +18,10 @@ use crate::{
 };
 
 #[derive(PartialEq, Clone)]
+#[expect(
+  clippy::struct_excessive_bools,
+  reason = "component props are independent display flags"
+)]
 pub struct UserRow {
   pub app_state: State<AppState>,
   pub user: User,

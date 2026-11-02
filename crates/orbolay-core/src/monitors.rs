@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MonitorInfo {
   pub name: String,
   pub is_primary: bool,

@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WsVoiceState {
   pub user_id: String,
@@ -14,12 +14,12 @@ pub struct WsVoiceState {
   pub camera: Option<bool>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct ChannelJoinPayload {
   pub states: Vec<WsVoiceState>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct UpdatePayload {
   pub state: WsVoiceState,
 }

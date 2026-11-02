@@ -2,7 +2,7 @@ use serde::Deserialize;
 
 use crate::user::PremiumType;
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct RpcUser {
   pub id: String,
   pub username: String,
@@ -10,13 +10,13 @@ pub struct RpcUser {
   pub avatar: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct ReadyPayload {
   pub v: i32,
   pub user: Option<RpcUser>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct VoiceChannelSelectPayload {
   pub channel_id: Option<String>,
   pub guild_id: Option<String>,
@@ -30,7 +30,7 @@ pub struct SelectedVoiceChannelPayload {
   pub voice_states: Vec<RpcVoiceState>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct VoiceStateUser {
   pub id: String,
   pub username: String,
@@ -38,7 +38,11 @@ pub struct VoiceStateUser {
   pub avatar: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[expect(
+  clippy::struct_excessive_bools,
+  reason = "mirrors the Discord RPC voice_state payload"
+)]
 pub struct VoiceStateState {
   pub mute: bool,
   pub deaf: bool,
@@ -56,17 +60,17 @@ pub struct RpcVoiceState {
   pub user: VoiceStateUser,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct ScreenshareState {
   pub active: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct VideoState {
   pub active: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct VoiceConnectionPing {
   pub time: i64,
   pub value: i64,
@@ -80,32 +84,32 @@ pub struct VoiceConnectionStatusPayload {
   pub average_ping: Option<f32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct VoiceSettingsUpdatePayload {
   pub deaf: bool,
   pub mute: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct SpeakingPayload {
   pub channel_id: String,
   pub user_id: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct GetGuildPayload {
   pub id: String,
   pub name: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct GetChannelPayload {
   pub id: String,
   pub name: String,
   pub guild_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct NotificationInner {
   pub id: Option<String>,
   pub guild_id: Option<String>,
@@ -114,7 +118,7 @@ pub struct NotificationInner {
   pub message_type: Option<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct GetUserPayload {
   pub id: String,
   #[serde(default, deserialize_with = "deserialize_premium_type")]
@@ -129,7 +133,7 @@ where
   PremiumType::try_from(value).map_err(serde::de::Error::custom)
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct NotificationCreatePayload {
   pub channel_id: Option<String>,
   pub message: Option<NotificationInner>,

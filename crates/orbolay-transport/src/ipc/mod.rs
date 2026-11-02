@@ -31,7 +31,7 @@ pub fn ipc_write(
   payload: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let payload_bytes = payload.as_bytes();
-  let len = payload_bytes.len() as u32;
+  let len = u32::try_from(payload_bytes.len())?;
   let mut buf = Vec::with_capacity(8 + payload_bytes.len());
   buf.extend_from_slice(&opcode.to_le_bytes());
   buf.extend_from_slice(&len.to_le_bytes());

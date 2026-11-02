@@ -45,7 +45,7 @@ fn try_create_stream() -> Result<LocalSocketStream, Box<dyn std::error::Error>> 
 
     for dir in candidates.into_iter().flatten() {
       for i in 0..10 {
-        let path = format!("{}/discord-ipc-{}", dir, i);
+        let path = format!("{dir}/discord-ipc-{i}");
 
         if let Ok(stream) = LocalSocketStream::connect(path.to_fs_name::<GenericFilePath>()?) {
           return Ok(stream);
@@ -72,18 +72,18 @@ fn try_create_stream() -> Result<LocalSocketStream, Box<dyn std::error::Error>> 
 fn drain_ui_messages(
   stream: &SharedStream,
   receiver: &flume::Receiver<BridgeMessage>,
-  app: AppHandle,
+  app: &AppHandle,
 ) -> Result<(), Box<dyn std::error::Error>> {
   while let Ok(msg) = receiver.try_recv() {
-    handle_ui_message(stream, &msg, app.clone())?;
+    handle_ui_message(stream, &msg, app)?;
   }
 
   Ok(())
 }
 
 pub fn create_ipc_connection(
-  app: AppHandle,
-  receiver: flume::Receiver<BridgeMessage>,
+  app: &AppHandle,
+  receiver: &flume::Receiver<BridgeMessage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let handshake = serde_json::json!({
     "v": 1,
@@ -111,12 +111,12 @@ pub fn create_ipc_connection(
 
     std::thread::spawn(move || {
       loop {
-        if let Err(e) = drain_ui_messages(&ui_stream, &ui_receiver, ui_app.clone()) {
+        if let Err(e) = drain_ui_messages(&ui_stream, &ui_receiver, &ui_app) {
           error!("UI message handler failed: {}", e);
           continue;
         }
 
-        if let Ok(()) = rx.try_recv() {
+        if rx.try_recv() == Ok(()) {
           return;
         }
 
@@ -128,7 +128,7 @@ pub fn create_ipc_connection(
       match ipc_read(&mut stream) {
         Ok((OP_FRAME, payload)) => {
           if let Ok(msg) = serde_json::from_str::<BridgeMessage>(&payload)
-            && let Err(e) = handle_command(&shared_stream, &msg, app.clone())
+            && let Err(e) = handle_command(&shared_stream, &msg, app)
           {
             error!("Error handling IPC command: {}", e);
           }
@@ -154,7 +154,7 @@ pub fn create_ipc_connection(
         title: "Disconnected".into(),
         body: "The connection to the Discord client has been closed, retrying in 10 seconds..."
           .into(),
-        icon: "".into(),
+        icon: String::new(),
         ..Default::default()
       });
     });
@@ -166,7 +166,7 @@ pub fn create_ipc_connection(
 pub fn handle_command(
   stream: &SharedStream,
   msg: &BridgeMessage,
-  app: AppHandle,
+  app: &AppHandle,
 ) -> Result<(), Box<dyn std::error::Error>> {
   match msg.cmd.as_str() {
     "AUTHENTICATE" => {
@@ -206,11 +206,8 @@ pub fn handle_command(
 
       log!("Received auth code");
 
-      let streamkit_code = match extract_auth_code(&code) {
-        Some(token) => token,
-        None => {
-          return Err("Failed to extract access token from StreamKit response".into());
-        }
+      let Some(streamkit_code) = extract_auth_code(&code) else {
+        return Err("Failed to extract access token from StreamKit response".into());
       };
 
       log!("Got StreamKit access token");
@@ -230,8 +227,8 @@ pub fn handle_command(
         let guild_id = data.guild_id.clone().unwrap_or_default();
         let voice_users = data.voice_states.into_iter().map(Into::into).collect();
         app.update(|state| {
-          state.current_channel = channel_id.clone();
-          state.current_guild_id = guild_id.clone();
+          state.current_channel.clone_from(&channel_id);
+          state.current_guild_id.clone_from(&guild_id);
           state.voice_users = voice_users;
         });
 
@@ -294,7 +291,7 @@ pub fn handle_command(
       }
     }
     "DISPATCH" => {
-      handle_ipc_message(stream, msg, app.clone())?;
+      handle_ipc_message(stream, msg, app)?;
     }
     _ => {
       log!("Unhandled command: {}", msg.cmd);

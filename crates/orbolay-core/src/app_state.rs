@@ -40,7 +40,7 @@ impl AppHandle {
     std::thread::Builder::new()
       .name("orbolay-grace".into())
       .spawn(move || {
-        for (user_id, until) in grace_rx.iter() {
+        for (user_id, until) in &grace_rx {
           if let Some(wait) = until.checked_duration_since(Instant::now()) {
             std::thread::sleep(wait);
           }

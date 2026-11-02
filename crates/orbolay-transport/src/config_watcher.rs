@@ -27,14 +27,13 @@ pub fn start_config_watcher(
       }
     };
 
-    let config_path = match config_dir() {
-      Some(path) => path.join("config.json"),
-      None => {
-        warn!(
-          "Failed to get config path. Config changes will not reflect until Orbolay is restarted."
-        );
-        return;
-      }
+    let config_path = if let Some(path) = config_dir() {
+      path.join("config.json")
+    } else {
+      warn!(
+        "Failed to get config path. Config changes will not reflect until Orbolay is restarted."
+      );
+      return;
     };
 
     if let Err(e) = watcher.watch(&config_path, notify::RecursiveMode::NonRecursive) {

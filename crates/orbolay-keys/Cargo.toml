@@ -10,3 +10,6 @@ serde_json = { workspace = true }
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 orbolay-logging = { path = "../orbolay-logging" }
 rdev = { workspace = true }
+
+[lints]
+workspace = true

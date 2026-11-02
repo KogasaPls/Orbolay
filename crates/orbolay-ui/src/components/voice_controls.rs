@@ -111,7 +111,7 @@ impl Component for VoiceControls {
           app_state.write().send(BridgeMessage {
             cmd: "TOGGLE_MUTE".to_string(),
             data: Value::Null,
-          })
+          });
         })
         .into(),
         theme: self.theme,
@@ -128,7 +128,7 @@ impl Component for VoiceControls {
           app_state.write().send(BridgeMessage {
             cmd: "TOGGLE_DEAF".to_string(),
             data: Value::Null,
-          })
+          });
         })
         .into(),
         theme: self.theme,
@@ -152,7 +152,7 @@ impl Component for VoiceControls {
           app_state.write().send(BridgeMessage {
             cmd: "DISCONNECT".to_string(),
             data: Value::Null,
-          })
+          });
         })
         .into(),
         theme: self.theme,
@@ -166,7 +166,7 @@ impl Component for VoiceControls {
             app_state.write().send(BridgeMessage {
               cmd: "STOP_STREAM".to_string(),
               data: Value::Null,
-            })
+            });
           })
           .into(),
           theme: self.theme,

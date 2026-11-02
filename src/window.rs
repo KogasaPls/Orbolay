@@ -34,7 +34,10 @@ pub fn set_clickable(clickable: bool) {
 
       let xid: u32 = match handle.as_raw() {
         RawWindowHandle::Xcb(h) => h.window.get(),
-        RawWindowHandle::Xlib(h) => h.window as u32,
+        RawWindowHandle::Xlib(h) => match u32::try_from(h.window) {
+          Ok(xid) => xid,
+          Err(_) => return,
+        },
         //  Wayland/etc. doesn't need this hack
         _ => return,
       };

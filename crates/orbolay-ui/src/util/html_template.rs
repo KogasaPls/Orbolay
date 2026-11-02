@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use crate::util::theme::{Theme, to_hex};
 
 pub fn escape_html(input: &str) -> String {
@@ -29,7 +31,7 @@ pub fn render_tag(name: &str, attrs: &[(String, String)]) -> String {
   tag.push('<');
   tag.push_str(name);
   for (name, value) in attrs {
-    tag.push_str(&format!(" {name}=\"{}\"", escape_attr(value)));
+    let _ = write!(tag, " {name}=\"{}\"", escape_attr(value));
   }
   tag.push('>');
   tag

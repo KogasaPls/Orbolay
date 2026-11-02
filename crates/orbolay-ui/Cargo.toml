@@ -21,3 +21,6 @@ url = { workspace = true }
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 rdev = { workspace = true }
+
+[lints]
+workspace = true

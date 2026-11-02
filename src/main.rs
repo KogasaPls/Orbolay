@@ -51,6 +51,7 @@ const APP_NAME: Option<&str> = option_env!("CARGO_PKG_NAME");
 const APP_VERSION: Option<&str> = option_env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone, Options)]
+#[expect(clippy::struct_excessive_bools, reason = "command-line flags")]
 pub struct Args {
   #[options(help = "Display usage information")]
   help: bool,
@@ -90,17 +91,23 @@ fn main() {
   let args = Args::parse_args_default_or_exit();
 
   if args.help_requested() {
-    println!("{}", Args::usage());
+    #[expect(clippy::print_stdout, reason = "command-line usage output")]
+    {
+      println!("{}", Args::usage());
+    }
     std::process::exit(0);
   }
 
   if args.version {
-    println!(
-      "{} version {} (rev {})",
-      APP_NAME.unwrap_or("Unknown"),
-      APP_VERSION.unwrap_or("0.0.0"),
-      GIT_HASH.unwrap_or("unknown")
-    );
+    #[expect(clippy::print_stdout, reason = "command-line version output")]
+    {
+      println!(
+        "{} version {} (rev {})",
+        APP_NAME.unwrap_or("Unknown"),
+        APP_VERSION.unwrap_or("0.0.0"),
+        GIT_HASH.unwrap_or("unknown")
+      );
+    }
     std::process::exit(0);
   }
 
@@ -118,18 +125,16 @@ fn main() {
     };
 
     let commands = [
-      args
-        .toggle_overlay
-        .then_some(orbolay_control::Command::ToggleOverlay),
-      args.mute.then_some(orbolay_control::Command::Mute),
-      args.deafen.then_some(orbolay_control::Command::Deafen),
+      args.toggle_overlay.then_some(Command::ToggleOverlay),
+      args.mute.then_some(Command::Mute),
+      args.deafen.then_some(Command::Deafen),
     ]
     .into_iter()
     .flatten();
 
     for cmd in commands {
       if let Err(e) = client.send(&cmd) {
-        eprintln!("Failed to send command: {}", e);
+        eprintln!("Failed to send command: {e}");
         std::process::exit(1);
       }
     }
@@ -254,7 +259,7 @@ fn app() -> impl IntoElement {
     }
 
     let shared: SharedAppState = std::sync::Arc::new(std::sync::RwLock::new(initial));
-    let app = AppHandle::new(shared.clone(), redraw_tx.clone(), open_config_tx);
+    let app = AppHandle::new(shared.clone(), redraw_tx, open_config_tx);
 
     if !args.debug {
       window::set_clickable(false);
@@ -305,9 +310,9 @@ fn app() -> impl IntoElement {
     });
 
     // sync SharedAppState -> AppState on every redraw signal
-    let shared_sync = shared.clone();
+    let shared_sync = shared;
     spawn_in_window(async move {
-      while let Ok(()) = redraw_rx.recv_async().await {
+      while redraw_rx.recv_async().await == Ok(()) {
         let synced = shared_sync.read().unwrap().clone();
         let transport_sender = app_state.read().transport_sender.clone();
         let is_open = app_state.read().is_open;
@@ -350,7 +355,7 @@ fn app() -> impl IntoElement {
 
     let config_app = app.clone();
     spawn_in_window(async move {
-      while let Ok(()) = open_config_rx.recv_async().await {
+      while open_config_rx.recv_async().await == Ok(()) {
         OverlayManager::close(app_state);
         open_configurator(&config_app);
       }

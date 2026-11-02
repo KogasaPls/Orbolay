@@ -47,8 +47,7 @@ impl Component for VoiceSection {
     let filtered_users: Vec<_> = sorted_users
       .into_iter()
       .filter(|user| match self.display_voice_members {
-        DisplayVoiceMembers::Always => true,
-        DisplayVoiceMembers::AlwaysSemiTransparent => true,
+        DisplayVoiceMembers::Always | DisplayVoiceMembers::AlwaysSemiTransparent => true,
         DisplayVoiceMembers::WhenSpeaking => {
           user.voice_state == UserVoiceState::Speaking || self.is_open
         }

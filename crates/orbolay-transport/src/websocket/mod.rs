@@ -13,8 +13,8 @@ use orbolay_core::{
 
 pub fn create_websocket(
   port: u16,
-  app: AppHandle,
-  transport_recv: flume::Receiver<BridgeMessage>,
+  app: &AppHandle,
+  transport_recv: &flume::Receiver<BridgeMessage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let server = TcpListener::bind(format!("127.0.0.1:{port}"))?;
   success!("Websocket server started on port {}", port);
@@ -26,8 +26,8 @@ pub fn create_websocket(
 
         let recv = transport_recv.clone();
         let app_clone = app.clone();
-        std::thread::spawn(move || match ws_stream(stream, app_clone, recv) {
-          Ok(_) => {
+        std::thread::spawn(move || match ws_stream(stream, &app_clone, &recv) {
+          Ok(()) => {
             success!("Websocket stream closed");
           }
           Err(e) => {
@@ -48,8 +48,8 @@ pub fn create_websocket(
 
 fn ws_stream(
   stream: TcpStream,
-  app: AppHandle,
-  transport_recv: flume::Receiver<BridgeMessage>,
+  app: &AppHandle,
+  transport_recv: &flume::Receiver<BridgeMessage>,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let mut websocket = accept(stream)?;
 
@@ -65,11 +65,11 @@ fn ws_stream(
           app.update(|state| state.voice_users = vec![]);
           break 'outer;
         }
-        Ok(msg) if msg.is_empty() => continue,
+        Ok(msg) if msg.is_empty() => {}
         Ok(msg) => {
           let msg = msg.to_string();
           let msg: BridgeMessage = serde_json::from_str(&msg)?;
-          if let Err(e) = handle_ws_message(&msg, app.clone()) {
+          if let Err(e) = handle_ws_message(&msg, app) {
             error!("Failed to handle websocket message: {}", e);
           }
         }
@@ -101,7 +101,7 @@ fn ws_stream(
 
 pub fn handle_ws_message(
   msg: &BridgeMessage,
-  app: AppHandle,
+  app: &AppHandle,
 ) -> Result<(), Box<dyn std::error::Error>> {
   log!("Received message: {:?}", msg);
 
@@ -118,8 +118,8 @@ pub fn handle_ws_message(
       let port = msg
         .data
         .get("port")
-        .and_then(|v| v.as_u64())
-        .map(|v| v as u16);
+        .and_then(Value::as_u64)
+        .and_then(|v| u16::try_from(v).ok());
       app.update(|state| {
         if let Some(port) = port {
           state.config.port = Some(port);
@@ -135,7 +135,10 @@ pub fn handle_ws_message(
 
         for voice_state in data.states {
           if voice_state.user_id == user_id {
-            state.current_channel = voice_state.channel_id.clone().unwrap_or("0".to_string());
+            state.current_channel = voice_state
+              .channel_id
+              .clone()
+              .unwrap_or_else(|| "0".to_owned());
           }
           users.push(voice_state.into());
         }
@@ -148,8 +151,7 @@ pub fn handle_ws_message(
         .data
         .get("state")
         .and_then(|v| v.get("channelId"))
-        .map(|v| v.is_null())
-        .unwrap_or(false);
+        .is_some_and(Value::is_null);
       let mut data = serde_json::from_value::<UpdatePayload>(msg.data.clone())?;
 
       app.update(|state| {
@@ -175,10 +177,10 @@ pub fn handle_ws_message(
         if let Some(user) = existing {
           // Update existing data whenever possible
           if let Some(username) = data.state.username.as_ref() {
-            user.name = username.to_string();
+            user.name.clone_from(username);
           }
           if let Some(avatar) = data.state.avatar_url.as_ref() {
-            user.avatar = avatar.to_string();
+            user.avatar.clone_from(avatar);
           }
 
           if data.state.streaming.is_none() {
@@ -219,8 +221,7 @@ pub fn handle_ws_message(
       let is_censor = msg
         .data
         .get("enabled")
-        .unwrap_or(&Value::from(false))
-        .as_bool()
+        .and_then(Value::as_bool)
         .unwrap_or_default();
       app.update(|state| state.is_censor = is_censor);
     }

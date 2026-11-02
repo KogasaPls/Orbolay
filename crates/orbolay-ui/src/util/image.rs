@@ -31,7 +31,7 @@ const OUTPUT_RES: (i32, i32) = (256, 256);
 
 fn border_key(border: Option<SkColor>) -> Option<u32> {
   border.map(|c| {
-    ((c.a() as u32) << 24) | ((c.r() as u32) << 16) | ((c.g() as u32) << 8) | (c.b() as u32)
+    (u32::from(c.a()) << 24) | (u32::from(c.r()) << 16) | (u32::from(c.g()) << 8) | u32::from(c.b())
   })
 }
 
@@ -48,7 +48,7 @@ pub fn avatar_image(url: &str, border: Option<SkColor>) -> FreyaImage {
   }
 
   let raw = fetch_icon(url, true).unwrap_or_default();
-  let processed = circular_with_border(raw, border).unwrap_or_default();
+  let processed = circular_with_border(&raw, border).unwrap_or_default();
 
   if processed.is_empty() {
     let bytes = Bytes::from_static(DEFAULT_AVATAR);
@@ -79,16 +79,22 @@ pub fn avatar_image(url: &str, border: Option<SkColor>) -> FreyaImage {
 }
 
 pub fn circular_with_border(
-  image: Vec<u8>,
+  image: &[u8],
   border: Option<SkColor>,
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
   let original_image =
-    SkImage::from_encoded(SkData::new_copy(&image)).ok_or("Failed to decode image")?;
+    SkImage::from_encoded(SkData::new_copy(image)).ok_or("Failed to decode image")?;
   let (orig_width, orig_height) = (original_image.width(), original_image.height());
   let scale_factor = OUTPUT_RES.0 as f32 / orig_width as f32;
 
-  let scaled_width = (orig_width as f32 * scale_factor) as i32;
-  let scaled_height = (orig_height as f32 * scale_factor) as i32;
+  #[expect(
+    clippy::cast_possible_truncation,
+    reason = "scaled dimensions stay within the image size range"
+  )]
+  let (scaled_width, scaled_height) = (
+    (orig_width as f32 * scale_factor) as i32,
+    (orig_height as f32 * scale_factor) as i32,
+  );
 
   let mut scaled_surface =
     raster_n32_premul((scaled_width, scaled_height)).ok_or("Failed to create scaled surface")?;
@@ -131,7 +137,8 @@ pub fn circular_with_border(
 }
 
 pub fn fetch_icon(url: &str, placeholder: bool) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-  if let Some(avatar) = AVATAR_CACHE.lock().unwrap().get(url).cloned() {
+  let cached = AVATAR_CACHE.lock().unwrap().get(url).cloned();
+  if let Some(avatar) = cached {
     log!("Cache hit for image {}", url);
     return Ok(avatar);
   }

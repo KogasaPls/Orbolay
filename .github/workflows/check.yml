@@ -49,4 +49,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: --manifest-path ./Cargo.toml --all -- -D warnings
+          args: --manifest-path ./Cargo.toml --workspace --all-targets --locked -- -D warnings

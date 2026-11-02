@@ -26,7 +26,7 @@ use crate::util::discord_auth::build_rpc_authorize_request;
 pub fn handle_ipc_message(
   stream: &SharedStream,
   msg: &BridgeMessage,
-  app: AppHandle,
+  app: &AppHandle,
 ) -> Result<(), Box<dyn std::error::Error>> {
   let shared = app.shared();
   let mut state = shared.write().unwrap();
@@ -64,19 +64,19 @@ pub fn handle_ipc_message(
         state.voice_users.clear();
       }
 
-      state.current_channel = new_channel.clone();
+      state.current_channel.clone_from(&new_channel);
       state.current_guild_id = data.guild_id.unwrap_or_default();
 
-      if !new_channel.is_empty() {
+      if new_channel.is_empty() {
+        state.voice_users.clear();
+        state.current_channel = String::new();
+      } else {
         voice_work = Some((
           old_channel,
           new_channel,
           state.current_guild_id.clone(),
           channel_changed,
         ));
-      } else {
-        state.voice_users.clear();
-        state.current_channel = String::new();
       }
     }
     "VOICE_STATE_CREATE" | "VOICE_STATE_UPDATE" => {

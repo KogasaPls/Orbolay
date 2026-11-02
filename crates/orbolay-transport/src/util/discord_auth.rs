@@ -33,7 +33,7 @@ pub fn extract_auth_code(code: &str) -> Option<String> {
     "code": code,
   });
 
-  for attempt in 1..ATTEMPTS + 1 {
+  for attempt in 1..=ATTEMPTS {
     let mut response = ureq::post(url.as_str())
       .header("Content-Type", "application/json")
       .send(&body.to_string())

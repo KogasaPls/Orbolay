@@ -16,7 +16,7 @@ fn self_and_ancestor_pids() -> HashSet<Pid> {
     if !pids.insert(current) {
       break;
     }
-    let Some(pid) = procs.get(&current).and_then(|proc| proc.parent()) else {
+    let Some(pid) = procs.get(&current).and_then(sysinfo::Process::parent) else {
       break;
     };
     current = pid;
@@ -39,8 +39,7 @@ pub fn is_already_running() -> bool {
 
   let our_name = std::env::current_exe()
     .ok()
-    .map(|exe| exe_basename(&exe))
-    .unwrap_or_else(|| "orbolay".to_string());
+    .map_or_else(|| "orbolay".to_string(), |exe| exe_basename(&exe));
 
   let sys = System::new_with_specifics(
     RefreshKind::nothing().with_processes(ProcessRefreshKind::everything()),
