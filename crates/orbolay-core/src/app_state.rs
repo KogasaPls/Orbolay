@@ -77,17 +77,19 @@ impl AppState {
           self.has_nitro = premium_type != 0;
         }
       }
-      BridgeEvent::ChannelJoined { states, guild_id } => {
-        if let Some(own) = states.iter().find(|state| state.user_id == self.user_id) {
-          self.current_channel = own
-            .channel_id
-            .clone()
-            .flatten()
-            .unwrap_or_else(|| "0".into());
-        }
-        if let Some(guild_id) = guild_id {
-          self.current_guild_id = guild_id;
-        }
+      BridgeEvent::ChannelJoined {
+        states,
+        guild_id,
+        channel_id,
+      } => {
+        let own_channel = || {
+          states
+            .iter()
+            .find(|state| state.user_id == self.user_id)
+            .and_then(|own| own.channel_id.clone().flatten())
+        };
+        self.current_channel = channel_id.or_else(own_channel).unwrap_or_default();
+        self.current_guild_id = guild_id.unwrap_or_default();
         self.voice_users = states.into_iter().map(User::from).collect();
       }
       BridgeEvent::VoiceStateUpdate { state } => {
@@ -441,6 +443,7 @@ mod tests {
       BridgeEvent::ChannelJoined {
         states: vec![member("me"), member("peer")],
         guild_id: Some("guild".into()),
+        channel_id: None,
       },
       now,
     );
@@ -470,6 +473,23 @@ mod tests {
     assert_eq!(state.current_channel, "voice");
     assert_eq!(state.current_guild_id, "guild");
     assert_eq!(state.voice_users.len(), 2);
+  }
+
+  #[test]
+  fn the_joined_channel_does_not_depend_on_listing_yourself() {
+    let mut state = AppState::default();
+    let now = Instant::now();
+    state.apply(
+      BridgeEvent::ChannelJoined {
+        states: vec![member("peer")],
+        guild_id: None,
+        channel_id: Some("voice".into()),
+      },
+      now,
+    );
+    assert_eq!(state.current_channel, "voice");
+    state.apply(update(member("peer")), now);
+    assert!(voice_state(&state, "peer").is_some());
   }
 
   #[test]

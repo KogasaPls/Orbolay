@@ -51,6 +51,9 @@ pub enum BridgeEvent {
     states: Vec<VoiceStatePayload>,
     #[serde(default)]
     guild_id: Option<String>,
+    /// The joined channel; older bridges omit it and only list members.
+    #[serde(default)]
+    channel_id: Option<String>,
   },
   VoiceStateUpdate {
     state: VoiceStatePayload,
