@@ -303,12 +303,24 @@ impl Config {
     self
   }
 
-  /// Prefer the native display name; use the legacy index only when no name is saved.
-  pub fn display_index(&self, mut names: impl Iterator<Item = Option<String>>) -> Option<usize> {
+  /// Position of the saved display among `names` (monitor names in Winit order): the native
+  /// name when one is saved, otherwise the legacy index. `None` when it is not connected.
+  pub fn saved_display(&self, names: &[Option<String>]) -> Option<usize> {
     match self.display_name.as_deref() {
-      Some(name) => names.position(|candidate| candidate.as_deref() == Some(name)),
-      None => self.display_idx,
+      Some(name) => names
+        .iter()
+        .position(|candidate| candidate.as_deref() == Some(name)),
+      None => self.display_idx.filter(|idx| *idx < names.len()),
     }
+  }
+
+  /// The display the overlay uses: the saved one, else `primary`, else the first. `None` only
+  /// when no display is connected.
+  pub fn select_display(&self, names: &[Option<String>], primary: Option<usize>) -> Option<usize> {
+    if names.is_empty() {
+      return None;
+    }
+    Some(self.saved_display(names).or(primary).unwrap_or(0))
   }
 }
 
@@ -386,8 +398,11 @@ mod tests {
 
   use super::{Config, Corner, DisplayVoiceMembers, SpeakingGraceStyle};
 
-  fn names(displays: &[&str]) -> impl Iterator<Item = Option<String>> {
-    displays.iter().map(|name| Some((*name).to_owned()))
+  fn names(displays: &[&str]) -> Vec<Option<String>> {
+    displays
+      .iter()
+      .map(|name| Some((*name).to_owned()))
+      .collect()
   }
 
   fn parse(value: serde_json::Value) -> Config {
@@ -399,11 +414,11 @@ mod tests {
     let config = parse(json!({ "displayName": "DP-1", "displayIdx": 1 }));
 
     assert_eq!(
-      config.display_index(names(&["HDMI-A-1", "DP-1", "DP-2"])),
+      config.saved_display(&names(&["HDMI-A-1", "DP-1", "DP-2"])),
       Some(1)
     );
     assert_eq!(
-      config.display_index(names(&["HDMI-A-1", "DP-2", "DP-1"])),
+      config.saved_display(&names(&["HDMI-A-1", "DP-2", "DP-1"])),
       Some(2)
     );
   }
@@ -411,19 +426,38 @@ mod tests {
   #[test]
   fn missing_named_display_does_not_use_a_stale_index() {
     let config = parse(json!({ "displayName": "DP-1", "displayIdx": 1 }));
-    assert_eq!(config.display_index(names(&["HDMI-A-1", "DP-2"])), None);
+    assert_eq!(config.saved_display(&names(&["HDMI-A-1", "DP-2"])), None);
   }
 
   #[test]
   fn display_name_can_be_configured_without_an_index() {
     let config = parse(json!({"displayName": "DP-1"}));
-    assert_eq!(config.display_index(names(&["DP-2", "DP-1"])), Some(1));
+    assert_eq!(config.saved_display(&names(&["DP-2", "DP-1"])), Some(1));
   }
 
   #[test]
   fn legacy_display_index_is_preserved() {
     let config = parse(json!({"displayIdx": 1}));
-    assert_eq!(config.display_index(names(&["DP-2", "DP-1"])), Some(1));
+    assert_eq!(config.saved_display(&names(&["DP-2", "DP-1"])), Some(1));
+  }
+
+  #[test]
+  fn a_missing_saved_display_falls_back_to_the_primary_then_the_first() {
+    let config = parse(json!({"displayName": "DP-1"}));
+    assert_eq!(
+      config.select_display(&names(&["HDMI-A-1", "DP-2"]), Some(1)),
+      Some(1)
+    );
+    assert_eq!(
+      config.select_display(&names(&["HDMI-A-1", "DP-2"]), None),
+      Some(0)
+    );
+    assert_eq!(config.select_display(&names(&[]), Some(0)), None);
+    let legacy = parse(json!({"displayIdx": 5}));
+    assert_eq!(
+      legacy.select_display(&names(&["HDMI-A-1", "DP-2"]), Some(1)),
+      Some(1)
+    );
   }
 
   #[test]

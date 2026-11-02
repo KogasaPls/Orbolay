@@ -344,12 +344,9 @@ impl Settings {
       .iter()
       .map(|d| format!("{} ({}x{})", d.name, d.width, d.height))
       .collect();
-    // A missing saved display falls back to the primary one, as the overlay does
-    let selected_display = config
-      .display_index(all_displays.iter().map(|d| d.native_name.clone()))
-      .filter(|idx| *idx < display_names.len())
-      .or_else(|| all_displays.iter().position(|d| d.is_primary))
-      .unwrap_or(0);
+    let names: Vec<_> = all_displays.iter().map(|d| d.native_name.clone()).collect();
+    let primary = all_displays.iter().position(|d| d.is_primary);
+    let selected_display = config.select_display(&names, primary).unwrap_or(0);
     let selected_scale = (0..UI_SCALE_OPTIONS.len())
       .min_by(|&a, &b| {
         let distance = |i: usize| (UI_SCALE_OPTIONS[i] - config.ui_scale).abs();

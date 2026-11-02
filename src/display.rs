@@ -11,28 +11,14 @@ pub fn select_monitor<'a>(
   primary: Option<&MonitorHandle>,
   monitors: &'a [MonitorHandle],
 ) -> Option<&'a MonitorHandle> {
-  let display_idx = config.display_index(monitors.iter().map(MonitorHandle::name));
-
-  if let Some(idx) = display_idx {
-    if let Some(monitor) = monitors.get(idx) {
-      return Some(monitor);
-    }
-
-    warn!(
-      "Saved display index {} is out of bounds ({} displays detected)",
-      idx,
-      monitors.len()
-    );
+  let names: Vec<_> = monitors.iter().map(MonitorHandle::name).collect();
+  let saved_missing = config.saved_display(&names).is_none()
+    && (config.display_name.is_some() || config.display_idx.is_some());
+  if saved_missing {
+    warn!("The saved display is not connected; using the primary display");
   }
-
-  if let Some(name) = config.display_name.as_deref() {
-    warn!("Saved display name {name:?} was not found; using the primary display");
-  }
-
-  let primary_idx = primary
-    .and_then(|p| monitors.iter().position(|m| m == p))
-    .unwrap_or(0);
-  monitors.get(primary_idx)
+  let primary = primary.and_then(|p| monitors.iter().position(|m| m == p));
+  monitors.get(config.select_display(&names, primary)?)
 }
 
 pub fn window_size_for_display(monitor: &MonitorHandle) -> PhysicalSize<u32> {
