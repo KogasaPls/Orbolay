@@ -1,93 +1,106 @@
-use log::{debug, error, info, warn};
-use std::net::{TcpListener, TcpStream};
-use tungstenite::{Message, Utf8Bytes, accept};
+//! The websocket server the `OrbolayBridge` plugin connects to.
+
+use futures_util::{SinkExt, StreamExt};
+use log::{debug, info, warn};
+use tokio::{net::TcpListener, task::JoinHandle};
+use tokio_tungstenite::{accept_async, tungstenite::Message};
 
 use orbolay_core::{
   app_state::AppHandle,
+  payloads::Notification,
   protocol::{BridgeCommand, BridgeEvent},
 };
 
-pub fn create_websocket(
-  port: u16,
-  app: &AppHandle,
-  transport_recv: &flume::Receiver<BridgeCommand>,
-) -> Result<(), Box<dyn std::error::Error>> {
-  let server = TcpListener::bind(format!("127.0.0.1:{port}"))?;
-  info!("Websocket server started on port {port}");
-
-  for stream in server.incoming() {
-    match stream {
-      Ok(stream) => {
-        info!("Accepted connection");
-
-        let recv = transport_recv.clone();
-        let app_clone = app.clone();
-        std::thread::spawn(move || match ws_stream(stream, &app_clone, &recv) {
-          Ok(()) => {
-            info!("Websocket stream closed");
-          }
-          Err(e) => {
-            error!("Error in websocket stream: {e}");
-          }
-        });
-      }
-      Err(e) => {
-        warn!("Failed to accept connection: {e}");
-      }
+/// Accepts bridge connections on `127.0.0.1:port`. A new connection replaces the previous one,
+/// so commands always reach the most recently connected client.
+pub async fn serve(app: AppHandle, port: u16, commands: flume::Receiver<BridgeCommand>) {
+  let listener = match TcpListener::bind(("127.0.0.1", port)).await {
+    Ok(listener) => listener,
+    Err(e) => {
+      log::error!("Could not listen for the bridge on port {port}: {e}");
+      app.notify(Notification {
+        title: "Orbolay cannot reach Discord".into(),
+        body: format!("Port {port} is unavailable: {e}"),
+        ..Notification::default()
+      });
+      return;
     }
-  }
-
-  warn!("Server stopped");
-
-  Ok(())
+  };
+  info!("Websocket server started on port {port}");
+  serve_listener(app, listener, commands).await;
 }
 
-fn ws_stream(
-  stream: TcpStream,
-  app: &AppHandle,
-  transport_recv: &flume::Receiver<BridgeCommand>,
-) -> Result<(), Box<dyn std::error::Error>> {
-  let mut websocket = accept(stream)?;
-
-  websocket.get_mut().set_nonblocking(true)?;
-
-  info!("Stream connected");
-
-  'outer: loop {
-    loop {
-      match websocket.read() {
-        Ok(msg) if msg.is_close() => {
-          info!("Stream closed");
-          app.apply(BridgeEvent::ChannelLeft);
-          break 'outer;
+pub async fn serve_listener(
+  app: AppHandle,
+  listener: TcpListener,
+  commands: flume::Receiver<BridgeCommand>,
+) {
+  let mut current: Option<JoinHandle<()>> = None;
+  loop {
+    let connected = current.as_ref().is_some_and(|task| !task.is_finished());
+    tokio::select! {
+      accepted = listener.accept() => match accepted {
+        Ok((stream, peer)) => {
+          info!("Bridge connected from {peer}");
+          if let Some(previous) = current.take().filter(|task| !task.is_finished()) {
+            previous.abort();
+            app.apply(BridgeEvent::ChannelLeft);
+          }
+          current = Some(tokio::spawn(connection(app.clone(), stream, commands.clone())));
         }
-        Ok(msg) if msg.is_empty() => {}
-        Ok(msg) => match serde_json::from_str::<BridgeEvent>(&msg.to_string()) {
+        Err(e) => warn!("Failed to accept a bridge connection: {e}"),
+      },
+      () = async { if let Some(task) = current.as_mut() { let _ = task.await; } }, if connected => {
+        current = None;
+      }
+      command = commands.recv_async(), if !connected => match command {
+        Ok(command) => debug!("No bridge connected; dropping {command:?}"),
+        Err(_) => return,
+      },
+    }
+  }
+}
+
+async fn connection(
+  app: AppHandle,
+  stream: tokio::net::TcpStream,
+  commands: flume::Receiver<BridgeCommand>,
+) {
+  let socket = match accept_async(stream).await {
+    Ok(socket) => socket,
+    Err(e) => {
+      warn!("Bridge handshake failed: {e}");
+      return;
+    }
+  };
+  let (mut sink, mut source) = socket.split();
+
+  loop {
+    tokio::select! {
+      frame = source.next() => match frame {
+        Some(Ok(Message::Text(text))) => match serde_json::from_str::<BridgeEvent>(&text) {
           Ok(event) => app.apply(event),
           Err(e) => warn!("Ignoring bridge message: {e}"),
         },
-        Err(tungstenite::Error::Io(ref e)) if e.kind() == std::io::ErrorKind::WouldBlock => break,
-        Err(e) => {
-          // socket is dead, exit so this thread stops draining messages.
-          error!("Websocket read error: {e}");
-          app.apply(BridgeEvent::ChannelLeft);
-          break 'outer;
+        Some(Ok(Message::Close(_))) | None => break,
+        Some(Ok(_)) => {}
+        Some(Err(e)) => {
+          warn!("Bridge connection failed: {e}");
+          break;
+        }
+      },
+      command = commands.recv_async() => {
+        let Ok(command) = command else { break };
+        let json = serde_json::to_string(&command).expect("commands serialize to JSON");
+        debug!("Sending to bridge: {json}");
+        if let Err(e) = sink.send(Message::text(json)).await {
+          warn!("Failed to send to the bridge: {e}");
+          break;
         }
       }
     }
-
-    if let Ok(msg) = transport_recv.try_recv() {
-      let msg = serde_json::to_string(&msg)?;
-      debug!("Sending message to websocket: {msg:?}");
-      websocket
-        .write(Message::Text(Utf8Bytes::from(msg)))
-        .unwrap_or_else(|_| error!("Failed to send message to websocket, socket closed?"));
-      websocket
-        .flush()
-        .unwrap_or_else(|_| error!("Failed to flush message to websocket, socket closed?"));
-    }
-
-    std::thread::sleep(std::time::Duration::from_millis(10));
   }
-  Ok(())
+
+  info!("Bridge disconnected");
+  app.apply(BridgeEvent::ChannelLeft);
 }
