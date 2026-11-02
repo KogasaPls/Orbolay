@@ -226,7 +226,6 @@ impl Settings {
     name: &str,
     description: Option<&str>,
     value: T,
-    disabled: bool,
     update: impl Fn(&mut Config, T) + 'static,
   ) -> Element {
     row(
@@ -239,9 +238,9 @@ impl Settings {
             update(cfg, n);
           }
         }),
-        !disabled,
+        true,
       ),
-      disabled,
+      false,
     )
   }
 
@@ -348,14 +347,17 @@ impl Settings {
       .iter()
       .map(|d| format!("{} ({}x{})", d.name, d.width, d.height))
       .collect();
+    // A missing saved display falls back to the primary one, as the overlay does
     let selected_display = config
       .display_index(all_displays.iter().map(|d| d.native_name.clone()))
       .filter(|idx| *idx < display_names.len())
+      .or_else(|| all_displays.iter().position(|d| d.is_primary))
       .unwrap_or(0);
-    let scale_label = ui_scale_label(config.ui_scale.clamp(0.5, 2.0));
-    let selected_scale = UI_SCALE_OPTIONS
-      .iter()
-      .position(|scale| ui_scale_label(*scale) == scale_label)
+    let selected_scale = (0..UI_SCALE_OPTIONS.len())
+      .min_by(|&a, &b| {
+        let distance = |i: usize| (UI_SCALE_OPTIONS[i] - config.ui_scale).abs();
+        distance(a).total_cmp(&distance(b))
+      })
       .unwrap_or(0);
 
     Vec::from([
@@ -414,7 +416,6 @@ impl Settings {
               "How long users keep showing after they stop talking, up to 5000. Values below 300 may flicker",
             ),
             config.speaking_grace_ms,
-            false,
             |cfg, n: u32| cfg.speaking_grace_ms = n.min(MAX_SPEAKING_GRACE_MS),
           ),
           row(
@@ -444,14 +445,12 @@ impl Settings {
             "X Offset (px)",
             None,
             config.user_offset_x,
-            false,
             |cfg, n| cfg.user_offset_x = n,
           ),
           self.number(
             "Y Offset (px)",
             None,
             config.user_offset_y,
-            false,
             |cfg, n| cfg.user_offset_y = n,
           ),
         ],
@@ -500,20 +499,12 @@ impl Settings {
             config.message_alignment,
             |cfg, v| cfg.message_alignment = v,
           ),
-          self.number(
-            "X Offset (px)",
-            None,
-            config.message_offset_x,
-            false,
-            |cfg, n| cfg.message_offset_x = n,
-          ),
-          self.number(
-            "Y Offset (px)",
-            None,
-            config.message_offset_y,
-            false,
-            |cfg, n| cfg.message_offset_y = n,
-          ),
+          self.number("X Offset (px)", None, config.message_offset_x, |cfg, n| {
+            cfg.message_offset_x = n;
+          }),
+          self.number("Y Offset (px)", None, config.message_offset_y, |cfg, n| {
+            cfg.message_offset_y = n;
+          }),
         ],
       ),
     ]
@@ -542,7 +533,6 @@ impl Settings {
             "Border Radius (px)",
             Some("Corner radius used by panels and buttons"),
             config.border_radius,
-            false,
             |cfg, n: f32| cfg.border_radius = n.max(0.),
           ),
         ],
@@ -579,7 +569,6 @@ impl Settings {
       "Websocket Port",
       Some("Port the websocket server listens on. Requires Restart."),
       config.port,
-      false,
       |cfg, n: u16| cfg.port = n,
     )])]
   }
