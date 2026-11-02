@@ -1,6 +1,6 @@
 //! Messages exchanged with the `OrbolayBridge` plugin over the websocket.
 
-use std::{collections::HashMap, time::Instant};
+use std::collections::HashMap;
 
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -102,10 +102,6 @@ pub struct Notification {
   pub guild_id: Option<String>,
   pub channel_id: Option<String>,
   pub message_id: Option<String>,
-
-  /// When the notification disappears, set once it is shown.
-  #[serde(skip)]
-  pub expires_at: Option<Instant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]

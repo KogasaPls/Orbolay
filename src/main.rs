@@ -331,7 +331,11 @@ fn app(startup: Startup) -> impl IntoElement {
     .enable_message_notifications
     .then(|| MessagesSection {
       app: app.clone(),
-      messages: state.messages.clone(),
+      messages: state
+        .messages
+        .iter()
+        .map(|shown| shown.notification.clone())
+        .collect(),
       is_open: open,
       is_censor: state.is_censor,
       message_alignment: config.message_alignment,

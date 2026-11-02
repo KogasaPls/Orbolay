@@ -23,6 +23,13 @@ pub struct Soundboard {
   pub guild_names: HashMap<String, String>,
 }
 
+/// A notification on screen and when it disappears.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Shown {
+  pub notification: Notification,
+  pub expires_at: Instant,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct AppState {
   pub config: Config,
@@ -33,7 +40,7 @@ pub struct AppState {
   pub current_guild_id: String,
   pub is_censor: bool,
   pub voice_users: Vec<User>,
-  pub messages: Vec<Notification>,
+  pub messages: Vec<Shown>,
   pub soundboard: Arc<Soundboard>,
 }
 
@@ -190,10 +197,12 @@ impl AppState {
   }
 
   /// Shows a notification, dropping the oldest beyond [`MAX_NOTIFICATIONS`].
-  pub fn notify(&mut self, mut notification: Notification, now: Instant) -> Timer {
+  pub fn notify(&mut self, notification: Notification, now: Instant) -> Timer {
     let at = now + NOTIFICATION_TIMEOUT;
-    notification.expires_at = Some(at);
-    self.messages.push(notification);
+    self.messages.push(Shown {
+      notification,
+      expires_at: at,
+    });
     let excess = self.messages.len().saturating_sub(MAX_NOTIFICATIONS);
     self.messages.drain(..excess);
     Timer {
@@ -218,9 +227,7 @@ impl AppState {
       }
       TimerKind::ExpireMessages => {
         let before = self.messages.len();
-        self
-          .messages
-          .retain(|message| message.expires_at.is_none_or(|at| at > now));
+        self.messages.retain(|shown| shown.expires_at > now);
         before != self.messages.len()
       }
     }
@@ -663,7 +670,11 @@ mod tests {
       );
     }
     let titles = |state: &AppState| -> Vec<String> {
-      state.messages.iter().map(|m| m.title.clone()).collect()
+      state
+        .messages
+        .iter()
+        .map(|shown| shown.notification.title.clone())
+        .collect()
     };
     assert_eq!(titles(&state), ["1", "2", "3"]);
 
